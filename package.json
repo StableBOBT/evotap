@@ -1,7 +1,7 @@
 {
-  "name": "evo-token-ton",
+  "name": "ton-miniapp-bolivia",
   "version": "0.1.0",
-  "description": "EVO Token - Meme token on TON with Telegram Mini App",
+  "description": "TON Mini App template for Bolivia - Tap-to-earn with Telegram",
   "private": true,
   "scripts": {
     "dev": "echo 'Run pnpm dev in specific app folder'",
@@ -12,13 +12,14 @@
     "ton",
     "telegram",
     "mini-app",
-    "meme-token",
+    "bolivia",
+    "tap-to-earn",
     "jetton"
   ],
-  "author": "AntonioCiolworpress",
+  "author": "Andelabs",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/AntonioCiolworpress/evo-token-ton.git"
+    "url": "https://github.com/kawsaymunay7-art/ton-miniapp-bolivia.git"
   }
 }

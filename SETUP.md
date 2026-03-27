@@ -21,8 +21,8 @@ npm install -g vercel
 ## 1. Clonar Repositorio
 
 ```bash
-git clone https://github.com/AntonioCiolworpress/evo-token-ton.git
-cd evo-token-ton
+git clone https://github.com/kawsaymunay7-art/ton-miniapp-bolivia.git
+cd ton-miniapp-bolivia
 ```
 
 ## 2. Instalar Dependencias
@@ -281,7 +281,25 @@ vercel --prod         # Produccion
 - Verificar BOT_TOKEN
 - Verificar que el bot esta corriendo
 
+## Vercel Token (Andelabs)
+
+Para deployar desde otro ordenador con el token de Vercel:
+
+```bash
+# El token esta guardado en archivo local (ver SECRETS.local.md)
+# Exportar antes de usar:
+export VERCEL_TOKEN=<tu_token_aqui>
+
+# Deploy con token
+vercel --token $VERCEL_TOKEN
+
+# Produccion
+vercel --token $VERCEL_TOKEN --prod
+```
+
+**IMPORTANTE:** El token NO esta en git. Pedir a @kawsaymunay7-art o ver notas locales.
+
 ## Contacto
 
 - Telegram: @EVOcommunity
-- GitHub Issues: github.com/AntonioCiolworpress/evo-token-ton/issues
+- GitHub Issues: github.com/kawsaymunay7-art/ton-miniapp-bolivia/issues

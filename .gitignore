@@ -43,6 +43,8 @@ temp/
 *.key
 secrets.json
 credentials.json
+SECRETS.local.md
+*.local.md
 
 # TON
 *.boc
