@@ -1,0 +1,24 @@
+{
+  "name": "evo-token-ton",
+  "version": "0.1.0",
+  "description": "EVO Token - Meme token on TON with Telegram Mini App",
+  "private": true,
+  "scripts": {
+    "dev": "echo 'Run pnpm dev in specific app folder'",
+    "build": "echo 'Run pnpm build in specific app folder'",
+    "test": "echo 'Tests not configured yet'"
+  },
+  "keywords": [
+    "ton",
+    "telegram",
+    "mini-app",
+    "meme-token",
+    "jetton"
+  ],
+  "author": "AntonioCiolworpress",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AntonioCiolworpress/evo-token-ton.git"
+  }
+}
