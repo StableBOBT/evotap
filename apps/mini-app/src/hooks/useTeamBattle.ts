@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8787';
+const API_URL = import.meta.env.VITE_API_URL || 'https://evotap-api-testnet.andeanlabs-58f.workers.dev';
 
 interface TeamScores {
   colla: number;
