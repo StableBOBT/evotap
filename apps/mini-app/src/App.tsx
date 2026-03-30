@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Header, Navigation, SplashScreen, AchievementNotification } from './components';
-import { GamePage, LeaderboardPage, ProfilePage, TasksPage, TeamSelectionPage, AirdropPage } from './pages';
+import { GamePage, LeaderboardPage, ProfilePage, TasksPage, TeamSelectionPage, AirdropPage, HowToPlayPage } from './pages';
 import { AchievementsList } from './components/AchievementsList';
 import { useUIStore } from './stores/uiStore';
 import { useGameStore } from './stores/gameStore';
@@ -108,6 +108,8 @@ export function App() {
         );
       case 'airdrop':
         return <AirdropPage />;
+      case 'howtoplay':
+        return <HowToPlayPage />;
       default:
         return <GamePage />;
     }

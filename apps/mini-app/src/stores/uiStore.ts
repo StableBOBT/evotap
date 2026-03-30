@@ -9,7 +9,7 @@ interface FloatingScore {
 
 interface UIState {
   // Navigation
-  currentPage: 'game' | 'leaderboard' | 'profile' | 'tasks' | 'teams' | 'achievements' | 'airdrop';
+  currentPage: 'game' | 'leaderboard' | 'profile' | 'tasks' | 'teams' | 'achievements' | 'airdrop' | 'howtoplay';
 
   // Modals
   isWalletModalOpen: boolean;

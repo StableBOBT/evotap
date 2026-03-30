@@ -9,3 +9,4 @@ export { AchievementsList } from './AchievementsList';
 export { StreakBonus } from './StreakBonus';
 export { TeamBattleSelector } from './TeamBattleSelector';
 export { BattleBar } from './BattleBar';
+export { HelpTooltip, HELP_CONTENT } from './HelpTooltip';

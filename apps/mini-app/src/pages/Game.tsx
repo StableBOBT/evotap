@@ -7,7 +7,9 @@ import {
   TeamBattleSelector,
   BattleBar
 } from '../components';
+import { HelpTooltip, HELP_CONTENT } from '../components/HelpTooltip';
 import { useGameStore, getEvoPhrase } from '../stores/gameStore';
+import { useUIStore } from '../stores/uiStore';
 import { useHaptics } from '../hooks/useHaptics';
 import { useTeamBattle, useRegionDetection } from '../hooks/useTeamBattle';
 import { useGameSync } from '../hooks/useGameSync';
@@ -115,10 +117,25 @@ export function GamePage() {
   // Low energy warning phrase
   const isLowEnergy = energy < maxEnergy * 0.1;
 
+  const setPage = useUIStore((s) => s.setPage);
+
   return (
     <div className="flex flex-col items-center justify-center flex-1 px-4 gap-4">
+      {/* Help button - floating top right */}
+      <button
+        onClick={() => setPage('howtoplay')}
+        className="fixed top-16 right-4 z-40 w-10 h-10 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 flex items-center justify-center text-white font-bold shadow-lg hover:scale-105 transition-transform"
+        aria-label="Como jugar"
+      >
+        ?
+      </button>
+
       {/* Battle Bar - Colla vs Camba */}
       <div className="w-full max-w-sm">
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-xs text-white/50">Batalla de Equipos</span>
+          <HelpTooltip {...HELP_CONTENT.teamBattle} />
+        </div>
         <BattleBar
           collaScore={scores.colla}
           cambaScore={scores.camba}
@@ -157,19 +174,22 @@ export function GamePage() {
         </div>
 
         {/* Streak indicator */}
-        {currentStreak > 0 && (
-          <button
-            onClick={() => setShowStreakBonus(true)}
-            className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs ${
-              !streakBonusCollected
-                ? 'bg-gradient-to-r from-orange-500 to-red-500 animate-pulse'
-                : 'bg-white/10'
-            }`}
-          >
-            <span>🔥</span>
-            <span className="font-bold">{currentStreak}</span>
-          </button>
-        )}
+        <div className="flex items-center gap-1">
+          {currentStreak > 0 && (
+            <button
+              onClick={() => setShowStreakBonus(true)}
+              className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs ${
+                !streakBonusCollected
+                  ? 'bg-gradient-to-r from-orange-500 to-red-500 animate-pulse'
+                  : 'bg-white/10'
+              }`}
+            >
+              <span>🔥</span>
+              <span className="font-bold">{currentStreak}</span>
+            </button>
+          )}
+          <HelpTooltip {...HELP_CONTENT.streak} />
+        </div>
       </div>
 
       {/* Score at top */}
