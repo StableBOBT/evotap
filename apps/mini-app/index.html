@@ -4,9 +4,39 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <meta name="theme-color" content="#000000" />
+    <meta name="theme-color" content="#1a1a2e" />
     <title>EVO Tap</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+      /* Prevent black screen - show loading immediately */
+      html, body, #root {
+        margin: 0;
+        padding: 0;
+        min-height: 100vh;
+        min-height: 100dvh;
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+      }
+      /* Initial loading state before React mounts */
+      #root:empty::before {
+        content: '';
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: inherit;
+      }
+      #root:empty::after {
+        content: 'Loading...';
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: rgba(255,255,255,0.6);
+        font-family: system-ui, sans-serif;
+        font-size: 14px;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>

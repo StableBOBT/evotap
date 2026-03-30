@@ -1,5 +1,18 @@
 import { create } from 'zustand';
-import { cloudStorage } from '@telegram-apps/sdk-react';
+
+// Safe cloudStorage access - might not be available
+let cloudStorage: {
+  getItem: { isAvailable: () => boolean } & ((key: string) => Promise<string | undefined>);
+  setItem: (key: string, value: string) => Promise<void>;
+  deleteItem: (key: string) => Promise<void>;
+} | null = null;
+
+try {
+  const sdk = require('@telegram-apps/sdk-react');
+  cloudStorage = sdk.cloudStorage;
+} catch {
+  console.warn('[GameStore] cloudStorage not available');
+}
 
 // =============================================================================
 // CONSTANTS & TYPES
@@ -310,9 +323,12 @@ export const useGameStore = create<GameState>()((set, get) => ({
       ]);
     };
 
+    // Check if cloudStorage is available
     let isAvailable = false;
     try {
-      isAvailable = cloudStorage.getItem.isAvailable();
+      if (cloudStorage?.getItem?.isAvailable) {
+        isAvailable = cloudStorage.getItem.isAvailable();
+      }
     } catch {
       console.warn('[GameStore] CloudStorage availability check failed');
     }
@@ -327,7 +343,9 @@ export const useGameStore = create<GameState>()((set, get) => ({
 
     try {
       // Timeout after 3 seconds to prevent hanging
-      const stored = await withTimeout(cloudStorage.getItem(STORAGE_KEY), 3000);
+      const stored = cloudStorage
+        ? await withTimeout(cloudStorage.getItem(STORAGE_KEY), 3000)
+        : null;
 
       if (stored) {
         const data = JSON.parse(stored);
@@ -681,7 +699,7 @@ export const useGameStore = create<GameState>()((set, get) => ({
   syncToCloud: async () => {
     const state = get();
 
-    if (!state.isCloudAvailable) {
+    if (!state.isCloudAvailable || !cloudStorage) {
       return false;
     }
 
@@ -767,7 +785,7 @@ export const useGameStore = create<GameState>()((set, get) => ({
     });
 
     const state = get();
-    if (state.isCloudAvailable) {
+    if (state.isCloudAvailable && cloudStorage) {
       cloudStorage.deleteItem(STORAGE_KEY).catch(console.error);
     }
   },
