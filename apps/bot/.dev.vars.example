@@ -1,0 +1,7 @@
+# Bot Local Development Secrets
+# Copy to .dev.vars and fill in your values
+
+BOT_TOKEN=your_bot_token
+API_URL=http://localhost:8787
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key

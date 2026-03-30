@@ -1,0 +1,42 @@
+{
+  "name": "@app/database",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./repositories": {
+      "types": "./dist/repositories/index.d.ts",
+      "import": "./dist/repositories/index.js"
+    },
+    "./client": {
+      "types": "./dist/client.d.ts",
+      "import": "./dist/client.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/",
+    "clean": "rm -rf dist node_modules"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.47.14"
+  },
+  "peerDependencies": {
+    "@app/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@app/core": "workspace:*",
+    "tsup": "^8.3.5",
+    "vitest": "^2.1.8",
+    "@vitest/coverage-v8": "^2.1.8"
+  }
+}

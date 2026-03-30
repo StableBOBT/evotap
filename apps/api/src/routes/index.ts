@@ -1,0 +1,9 @@
+export { gameRouter } from './game.js';
+export { userRouter } from './user.js';
+export { leaderboardRouter } from './leaderboard.js';
+export { referralRouter } from './referral.js';
+export { botRouter } from './bot.js';
+export { anticheatRouter } from './anticheat.js';
+export { socialRouter } from './social.js';
+export { airdropRouter } from './airdrop.js';
+export { adminRouter } from './admin.js';

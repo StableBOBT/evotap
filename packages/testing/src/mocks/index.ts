@@ -1,0 +1,15 @@
+export {
+  createMockTelegramUser,
+  createMockMinimalUser,
+  createMockInitData,
+  createMockInitDataUnsafe,
+  createMockTelegramWebApp,
+  installTelegramMock,
+  uninstallTelegramMock,
+  type TelegramUser,
+  type TelegramChat,
+  type InitDataUnsafe,
+  type MockBackButton,
+  type MockMainButton,
+  type MockTelegramWebApp,
+} from './telegramMock.js';

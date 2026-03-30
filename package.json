@@ -1,20 +1,50 @@
 {
   "name": "ton-miniapp-bolivia",
   "version": "0.1.0",
-  "description": "TON Mini App template for Bolivia - Tap-to-earn with Telegram",
+  "description": "Professional TON Mini App - Tap-to-earn with Telegram",
   "private": true,
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=9.0.0"
+  },
   "scripts": {
-    "dev": "echo 'Run pnpm dev in specific app folder'",
-    "build": "echo 'Run pnpm build in specific app folder'",
-    "test": "echo 'Tests not configured yet'"
+    "build": "turbo run build",
+    "dev": "turbo run dev --parallel",
+    "dev:api": "pnpm --filter @app/api dev",
+    "dev:bot": "pnpm --filter @app/bot dev:local",
+    "dev:mini-app": "pnpm --filter @app/mini-app dev",
+    "dev:all": "concurrently -n api,bot,app -c blue,green,magenta \"pnpm dev:api\" \"pnpm dev:bot\" \"pnpm dev:mini-app\"",
+    "test": "turbo run test",
+    "test:unit": "turbo run test:unit",
+    "test:integration": "turbo run test:integration",
+    "test:e2e": "turbo run test:e2e",
+    "test:coverage": "turbo run test -- --coverage",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "clean": "turbo run clean && rm -rf node_modules",
+    "format": "prettier --write \"**/*.{ts,tsx,md,json}\"",
+    "deploy:testnet": "turbo run deploy:testnet",
+    "deploy:mainnet": "turbo run deploy:mainnet",
+    "db:migrate": "pnpm --filter @app/database migrate",
+    "setup": "pnpm install && cp .env.local.example .env.local && echo '✅ Setup complete! Edit .env.local with your credentials'"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@vitest/coverage-v8": "^2.1.9",
+    "concurrently": "^9.1.0",
+    "prettier": "^3.4.2",
+    "turbo": "^2.3.3",
+    "typescript": "^5.7.2"
   },
   "keywords": [
     "ton",
     "telegram",
     "mini-app",
-    "bolivia",
     "tap-to-earn",
-    "jetton"
+    "jetton",
+    "monorepo",
+    "turborepo"
   ],
   "author": "Andelabs",
   "license": "MIT",

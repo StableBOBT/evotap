@@ -1,0 +1,40 @@
+{
+  "name": "@app/testing",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./fixtures": {
+      "types": "./dist/fixtures.d.ts",
+      "import": "./dist/fixtures.js"
+    },
+    "./factories": {
+      "types": "./dist/factories/index.d.ts",
+      "import": "./dist/factories/index.js"
+    },
+    "./mocks": {
+      "types": "./dist/mocks/index.d.ts",
+      "import": "./dist/mocks/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/",
+    "clean": "rm -rf dist node_modules"
+  },
+  "dependencies": {
+    "@faker-js/faker": "^9.3.0"
+  },
+  "devDependencies": {
+    "tsup": "^8.3.5",
+    "vitest": "^2.1.8"
+  }
+}

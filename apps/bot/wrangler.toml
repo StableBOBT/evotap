@@ -1,0 +1,39 @@
+name = "evotap-bot"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+
+# =============================================
+# PRODUCTION (default)
+# =============================================
+[vars]
+ENVIRONMENT = "production"
+MINI_APP_URL = "https://dist-pi-gray.vercel.app"
+API_URL = "https://evotap-api.andeanlabs-58f.workers.dev"
+
+# For local dev, use polling mode instead of webhooks
+# Run: pnpm --filter @app/bot dev:local
+
+# =============================================
+# TESTNET DEPLOYMENT
+# =============================================
+[env.testnet]
+name = "evotap-bot-testnet"
+vars = { ENVIRONMENT = "testnet", MINI_APP_URL = "https://staging.evotap.app", API_URL = "https://api-staging.evotap.app" }
+
+# Set webhook after deploy:
+# curl -X POST "https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://evotap-bot-testnet.<account>.workers.dev"
+
+# =============================================
+# MAINNET PRODUCTION
+# =============================================
+[env.mainnet]
+name = "evotap-bot"
+vars = { ENVIRONMENT = "mainnet", MINI_APP_URL = "https://evotap.app", API_URL = "https://api.evotap.app" }
+
+# Set webhook after deploy:
+# curl -X POST "https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://evotap-bot.<account>.workers.dev"
+
+# Required secrets for all environments:
+# - BOT_TOKEN
+# - SUPABASE_URL
+# - SUPABASE_SERVICE_ROLE_KEY

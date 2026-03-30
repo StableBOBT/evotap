@@ -1,0 +1,100 @@
+name = "evotap-api"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+
+# =============================================
+# LOCAL DEVELOPMENT (default)
+# =============================================
+[vars]
+ENVIRONMENT = "local"
+TON_NETWORK = "testnet"
+
+# For local dev, secrets come from .dev.vars file
+# Create apps/api/.dev.vars with your secrets:
+#
+# BOT_TOKEN=your_bot_token
+# SUPABASE_URL=https://your-project.supabase.co
+# SUPABASE_ANON_KEY=your_anon_key
+# SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+# UPSTASH_REDIS_REST_URL=https://your-redis.upstash.io
+# UPSTASH_REDIS_REST_TOKEN=your_redis_token
+
+# =============================================
+# TESTNET DEPLOYMENT
+# =============================================
+[env.testnet]
+name = "evotap-api-testnet"
+vars = { ENVIRONMENT = "testnet", TON_NETWORK = "testnet" }
+
+# Set secrets via: wrangler secret put --env testnet SECRET_NAME
+# Required:
+# - BOT_TOKEN
+# - SUPABASE_URL
+# - SUPABASE_ANON_KEY
+# - SUPABASE_SERVICE_ROLE_KEY
+# - UPSTASH_REDIS_REST_URL
+# - UPSTASH_REDIS_REST_TOKEN
+
+# Optional: Custom domain
+# routes = [
+#   { pattern = "api-testnet.evotap.app", custom_domain = true }
+# ]
+
+# =============================================
+# MAINNET PRODUCTION
+# =============================================
+[env.mainnet]
+name = "evotap-api"
+vars = { ENVIRONMENT = "mainnet", TON_NETWORK = "mainnet" }
+
+# Set secrets via: wrangler secret put --env mainnet SECRET_NAME
+# Required:
+# - BOT_TOKEN
+# - SUPABASE_URL
+# - SUPABASE_ANON_KEY
+# - SUPABASE_SERVICE_ROLE_KEY
+# - UPSTASH_REDIS_REST_URL
+# - UPSTASH_REDIS_REST_TOKEN
+
+# Optional: Custom domain
+# routes = [
+#   { pattern = "api.evotap.app", custom_domain = true }
+# ]
+
+# =============================================
+# BUILD CONFIGURATION
+# =============================================
+[build]
+command = "pnpm build"
+
+# =============================================
+# SCHEDULED TRIGGERS (Supabase sync)
+# =============================================
+# Sync Redis data to Supabase every 5 minutes
+[triggers]
+crons = ["*/5 * * * *"]
+
+[env.testnet.triggers]
+crons = ["*/5 * * * *"]
+
+[env.mainnet.triggers]
+crons = ["*/5 * * * *"]
+
+# =============================================
+# OBSERVABILITY
+# =============================================
+# [observability]
+# enabled = true
+
+# =============================================
+# REQUIRED SECRETS (all environments)
+# =============================================
+# Set via: wrangler secret put <SECRET_NAME>
+#
+# BOT_TOKEN              - Telegram bot token
+# SUPABASE_URL           - Supabase project URL
+# SUPABASE_ANON_KEY      - Supabase anonymous key
+# SUPABASE_SERVICE_ROLE_KEY - Supabase service role key
+# UPSTASH_REDIS_REST_URL - Upstash Redis REST URL
+# UPSTASH_REDIS_REST_TOKEN - Upstash Redis REST token

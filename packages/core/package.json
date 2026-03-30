@@ -1,0 +1,43 @@
+{
+  "name": "@app/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./shared": {
+      "types": "./dist/domains/shared/index.d.ts",
+      "import": "./dist/domains/shared/index.js"
+    },
+    "./game": {
+      "types": "./dist/domains/game/index.d.ts",
+      "import": "./dist/domains/game/index.js"
+    },
+    "./user": {
+      "types": "./dist/domains/user/index.d.ts",
+      "import": "./dist/domains/user/index.js"
+    },
+    "./referral": {
+      "types": "./dist/domains/referral/index.d.ts",
+      "import": "./dist/domains/referral/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/",
+    "clean": "rm -rf dist node_modules"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^2.1.8",
+    "tsup": "^8.3.5",
+    "vitest": "^2.1.8"
+  }
+}

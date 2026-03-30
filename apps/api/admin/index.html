@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EVO Admin Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #0f0f23 100%);
+      min-height: 100vh;
+    }
+    .glass {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+  </style>
+</head>
+<body class="text-white p-6">
+  <div class="max-w-7xl mx-auto">
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-8">
+      <div>
+        <h1 class="text-3xl font-bold bg-gradient-to-r from-yellow-400 to-red-500 bg-clip-text text-transparent">
+          EVO Admin Dashboard
+        </h1>
+        <p class="text-white/60 text-sm mt-1">Sistema de administracion</p>
+      </div>
+      <div class="flex items-center gap-4">
+        <input
+          type="password"
+          id="adminKey"
+          placeholder="Admin Key"
+          class="px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/40 w-64"
+        />
+        <button
+          onclick="loadStats()"
+          class="px-4 py-2 bg-gradient-to-r from-yellow-500 to-red-500 rounded-lg font-medium hover:opacity-90"
+        >
+          Conectar
+        </button>
+      </div>
+    </div>
+
+    <!-- API URL Config -->
+    <div class="glass rounded-xl p-4 mb-6">
+      <label class="text-white/60 text-sm">API URL:</label>
+      <input
+        type="text"
+        id="apiUrl"
+        value="http://localhost:8787"
+        class="ml-2 px-3 py-1 bg-white/5 border border-white/10 rounded-lg text-white w-80"
+      />
+    </div>
+
+    <!-- Stats Grid -->
+    <div id="statsGrid" class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+      <!-- Stats cards will be inserted here -->
+    </div>
+
+    <!-- Main Content -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <!-- Top Users -->
+      <div class="glass rounded-xl p-6">
+        <h2 class="text-xl font-semibold mb-4 flex items-center gap-2">
+          <span>🏆</span> Top Usuarios
+        </h2>
+        <div id="topUsers" class="space-y-2 max-h-96 overflow-y-auto">
+          <p class="text-white/40">Cargando...</p>
+        </div>
+      </div>
+
+      <!-- Banned Users -->
+      <div class="glass rounded-xl p-6">
+        <h2 class="text-xl font-semibold mb-4 flex items-center gap-2">
+          <span>🚫</span> Usuarios Baneados
+        </h2>
+        <div id="bannedUsers" class="space-y-2 max-h-96 overflow-y-auto">
+          <p class="text-white/40">Cargando...</p>
+        </div>
+      </div>
+
+      <!-- Suspicious Activity -->
+      <div class="glass rounded-xl p-6">
+        <h2 class="text-xl font-semibold mb-4 flex items-center gap-2">
+          <span>⚠️</span> Actividad Sospechosa
+        </h2>
+        <div id="suspiciousUsers" class="space-y-2 max-h-96 overflow-y-auto">
+          <p class="text-white/40">Cargando...</p>
+        </div>
+      </div>
+
+      <!-- User Search -->
+      <div class="glass rounded-xl p-6">
+        <h2 class="text-xl font-semibold mb-4 flex items-center gap-2">
+          <span>🔍</span> Buscar Usuario
+        </h2>
+        <div class="flex gap-2 mb-4">
+          <input
+            type="text"
+            id="searchQuery"
+            placeholder="Telegram ID"
+            class="flex-1 px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/40"
+          />
+          <button
+            onclick="searchUser()"
+            class="px-4 py-2 bg-blue-500 rounded-lg font-medium hover:bg-blue-600"
+          >
+            Buscar
+          </button>
+        </div>
+        <div id="searchResult" class="mt-4">
+          <p class="text-white/40">Ingresa un Telegram ID para buscar</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Ban Modal -->
+    <div id="banModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
+      <div class="glass rounded-xl p-6 w-96">
+        <h3 class="text-xl font-semibold mb-4">Banear Usuario</h3>
+        <input
+          type="number"
+          id="banTelegramId"
+          placeholder="Telegram ID"
+          class="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white mb-3"
+        />
+        <input
+          type="text"
+          id="banReason"
+          placeholder="Razon del ban"
+          class="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white mb-3"
+        />
+        <input
+          type="number"
+          id="banDuration"
+          placeholder="Duracion (horas, vacio = permanente)"
+          class="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white mb-4"
+        />
+        <div class="flex gap-2">
+          <button
+            onclick="closeBanModal()"
+            class="flex-1 px-4 py-2 bg-white/10 rounded-lg font-medium"
+          >
+            Cancelar
+          </button>
+          <button
+            onclick="confirmBan()"
+            class="flex-1 px-4 py-2 bg-red-500 rounded-lg font-medium hover:bg-red-600"
+          >
+            Banear
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function getApiUrl() {
+      return document.getElementById('apiUrl').value;
+    }
+
+    function getAdminKey() {
+      return document.getElementById('adminKey').value;
+    }
+
+    async function apiCall(endpoint, method = 'GET', body = null) {
+      const options = {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Admin-Key': getAdminKey(),
+        },
+      };
+
+      if (body) {
+        options.body = JSON.stringify(body);
+      }
+
+      const response = await fetch(`${getApiUrl()}${endpoint}`, options);
+      return response.json();
+    }
+
+    async function loadStats() {
+      try {
+        const result = await apiCall('/api/v1/admin/stats');
+
+        if (!result.success) {
+          alert('Error: ' + result.error);
+          return;
+        }
+
+        const { users, points, teams, airdrop } = result.data;
+
+        document.getElementById('statsGrid').innerHTML = `
+          <div class="glass rounded-xl p-4">
+            <p class="text-white/60 text-sm">Total Usuarios</p>
+            <p class="text-3xl font-bold text-white">${users.total.toLocaleString()}</p>
+            <p class="text-green-400 text-xs mt-1">+${users.activeToday} activos hoy</p>
+          </div>
+          <div class="glass rounded-xl p-4">
+            <p class="text-white/60 text-sm">Puntos Totales</p>
+            <p class="text-3xl font-bold text-white">${points.total.toLocaleString()}</p>
+            <p class="text-white/40 text-xs mt-1">~${points.average.toLocaleString()} promedio</p>
+          </div>
+          <div class="glass rounded-xl p-4">
+            <p class="text-white/60 text-sm">Equipos</p>
+            <div class="flex gap-4 mt-2">
+              <div>
+                <p class="text-xl font-bold text-blue-400">${teams.colla}</p>
+                <p class="text-xs text-white/40">Collas</p>
+              </div>
+              <div>
+                <p class="text-xl font-bold text-green-400">${teams.camba}</p>
+                <p class="text-xs text-white/40">Cambas</p>
+              </div>
+            </div>
+          </div>
+          <div class="glass rounded-xl p-4">
+            <p class="text-white/60 text-sm">Baneados</p>
+            <p class="text-3xl font-bold text-red-400">${users.banned}</p>
+            <p class="text-white/40 text-xs mt-1">usuarios baneados</p>
+          </div>
+        `;
+
+        // Load other data
+        loadTopUsers();
+        loadBannedUsers();
+        loadSuspiciousUsers();
+      } catch (error) {
+        alert('Error de conexion: ' + error.message);
+      }
+    }
+
+    async function loadTopUsers() {
+      try {
+        const result = await apiCall('/api/v1/admin/users/top?limit=20');
+
+        if (!result.success) return;
+
+        const container = document.getElementById('topUsers');
+        container.innerHTML = result.data.users.map((user, i) => `
+          <div class="flex items-center justify-between p-2 bg-white/5 rounded-lg">
+            <div class="flex items-center gap-3">
+              <span class="text-lg font-bold text-white/40">#${i + 1}</span>
+              <div>
+                <p class="font-medium">${user.username || user.telegramId}</p>
+                <p class="text-xs text-white/40">ID: ${user.telegramId}</p>
+              </div>
+            </div>
+            <div class="text-right">
+              <p class="font-bold text-yellow-400">${user.points.toLocaleString()}</p>
+              <p class="text-xs ${user.trustScore >= 50 ? 'text-green-400' : 'text-red-400'}">
+                Trust: ${user.trustScore || 50}
+              </p>
+            </div>
+          </div>
+        `).join('');
+      } catch (error) {
+        console.error('Error loading top users:', error);
+      }
+    }
+
+    async function loadBannedUsers() {
+      try {
+        const result = await apiCall('/api/v1/admin/users/banned');
+
+        if (!result.success) return;
+
+        const container = document.getElementById('bannedUsers');
+
+        if (result.data.users.length === 0) {
+          container.innerHTML = '<p class="text-white/40">No hay usuarios baneados</p>';
+          return;
+        }
+
+        container.innerHTML = result.data.users.map(user => `
+          <div class="flex items-center justify-between p-2 bg-red-500/10 rounded-lg border border-red-500/20">
+            <div>
+              <p class="font-medium">${user.telegramId}</p>
+              <p class="text-xs text-red-300">${user.reason}</p>
+            </div>
+            <button
+              onclick="unbanUser(${user.telegramId})"
+              class="px-3 py-1 bg-green-500/20 text-green-400 rounded text-sm hover:bg-green-500/30"
+            >
+              Desbanear
+            </button>
+          </div>
+        `).join('');
+      } catch (error) {
+        console.error('Error loading banned users:', error);
+      }
+    }
+
+    async function loadSuspiciousUsers() {
+      try {
+        const result = await apiCall('/api/v1/admin/suspicious');
+
+        if (!result.success) return;
+
+        const container = document.getElementById('suspiciousUsers');
+
+        if (result.data.users.length === 0) {
+          container.innerHTML = '<p class="text-white/40">No hay actividad sospechosa</p>';
+          return;
+        }
+
+        container.innerHTML = result.data.users.map(user => `
+          <div class="flex items-center justify-between p-2 bg-yellow-500/10 rounded-lg border border-yellow-500/20">
+            <div>
+              <p class="font-medium">${user.telegramId}</p>
+              <p class="text-xs text-yellow-300">${user.reasons.join(', ')}</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-red-400 font-bold">${user.trustScore}</span>
+              <button
+                onclick="openBanModal(${user.telegramId})"
+                class="px-3 py-1 bg-red-500/20 text-red-400 rounded text-sm hover:bg-red-500/30"
+              >
+                Banear
+              </button>
+            </div>
+          </div>
+        `).join('');
+      } catch (error) {
+        console.error('Error loading suspicious users:', error);
+      }
+    }
+
+    async function searchUser() {
+      const query = document.getElementById('searchQuery').value;
+      if (!query) return;
+
+      try {
+        const result = await apiCall('/api/v1/admin/users/search', 'POST', { query });
+        const container = document.getElementById('searchResult');
+
+        if (!result.success) {
+          container.innerHTML = `<p class="text-red-400">${result.error}</p>`;
+          return;
+        }
+
+        const user = result.data;
+        container.innerHTML = `
+          <div class="bg-white/5 rounded-lg p-4">
+            <div class="flex items-center justify-between mb-4">
+              <div>
+                <p class="text-xl font-bold">${user.username || 'Sin username'}</p>
+                <p class="text-white/40">ID: ${user.telegramId}</p>
+              </div>
+              ${user.isBanned ? '<span class="px-2 py-1 bg-red-500 rounded text-sm">BANEADO</span>' : ''}
+            </div>
+            <div class="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <p class="text-white/40">Puntos</p>
+                <p class="font-bold text-yellow-400">${user.points.toLocaleString()}</p>
+              </div>
+              <div>
+                <p class="text-white/40">Trust Score</p>
+                <p class="font-bold ${user.trustScore >= 50 ? 'text-green-400' : 'text-red-400'}">${user.trustScore}</p>
+              </div>
+              <div>
+                <p class="text-white/40">Equipo</p>
+                <p>${user.team || 'Sin equipo'}</p>
+              </div>
+              <div>
+                <p class="text-white/40">Departamento</p>
+                <p>${user.department || 'Sin seleccionar'}</p>
+              </div>
+              <div class="col-span-2">
+                <p class="text-white/40">Wallet</p>
+                <p class="text-xs break-all">${user.walletAddress || 'No conectada'}</p>
+              </div>
+            </div>
+            <div class="flex gap-2 mt-4">
+              ${user.isBanned
+                ? `<button onclick="unbanUser(${user.telegramId})" class="flex-1 px-4 py-2 bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30">Desbanear</button>`
+                : `<button onclick="openBanModal(${user.telegramId})" class="flex-1 px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30">Banear</button>`
+              }
+            </div>
+          </div>
+        `;
+      } catch (error) {
+        document.getElementById('searchResult').innerHTML = `<p class="text-red-400">Error: ${error.message}</p>`;
+      }
+    }
+
+    function openBanModal(telegramId) {
+      document.getElementById('banTelegramId').value = telegramId;
+      document.getElementById('banModal').classList.remove('hidden');
+      document.getElementById('banModal').classList.add('flex');
+    }
+
+    function closeBanModal() {
+      document.getElementById('banModal').classList.add('hidden');
+      document.getElementById('banModal').classList.remove('flex');
+      document.getElementById('banTelegramId').value = '';
+      document.getElementById('banReason').value = '';
+      document.getElementById('banDuration').value = '';
+    }
+
+    async function confirmBan() {
+      const telegramId = parseInt(document.getElementById('banTelegramId').value);
+      const reason = document.getElementById('banReason').value;
+      const duration = document.getElementById('banDuration').value ? parseInt(document.getElementById('banDuration').value) : undefined;
+
+      if (!telegramId || !reason) {
+        alert('Telegram ID y razon son requeridos');
+        return;
+      }
+
+      try {
+        const result = await apiCall('/api/v1/admin/users/ban', 'POST', { telegramId, reason, duration });
+
+        if (result.success) {
+          alert('Usuario baneado exitosamente');
+          closeBanModal();
+          loadBannedUsers();
+          loadSuspiciousUsers();
+        } else {
+          alert('Error: ' + result.error);
+        }
+      } catch (error) {
+        alert('Error: ' + error.message);
+      }
+    }
+
+    async function unbanUser(telegramId) {
+      if (!confirm(`Desbanear usuario ${telegramId}?`)) return;
+
+      try {
+        const result = await apiCall('/api/v1/admin/users/unban', 'POST', { telegramId });
+
+        if (result.success) {
+          alert('Usuario desbaneado');
+          loadBannedUsers();
+        } else {
+          alert('Error: ' + result.error);
+        }
+      } catch (error) {
+        alert('Error: ' + error.message);
+      }
+    }
+
+    // Auto-load if admin key is provided via URL hash
+    if (window.location.hash) {
+      document.getElementById('adminKey').value = window.location.hash.slice(1);
+      loadStats();
+    }
+  </script>
+</body>
+</html>
