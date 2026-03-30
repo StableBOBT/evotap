@@ -70,26 +70,23 @@ export interface User {
   createdAt: string;
 }
 
+// Anonymous leaderboard entry - no personal data, only rank and points
 export interface LeaderboardEntry {
   rank: number;
-  telegramId: number;
-  username: string | null;
-  firstName: string;
   points: number;
-  level: number;
+  isCurrentUser?: boolean;
   team?: string | null;
-  department?: string | null;
 }
 
 export interface LeaderboardResponse {
-  leaderboard: LeaderboardEntry[];
+  entries: LeaderboardEntry[];
   userRank: number | null;
-  period: 'daily' | 'weekly' | 'global';
+  userScore?: number | null;
   total: number;
 }
 
 export interface TeamLeaderboardResponse {
-  leaderboard: LeaderboardEntry[];
+  entries: LeaderboardEntry[];
   teamStats: {
     totalPoints: number;
     totalPlayers: number;

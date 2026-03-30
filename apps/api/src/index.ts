@@ -19,6 +19,7 @@ import {
   socialRouter,
   airdropRouter,
   adminRouter,
+  seasonsRouter,
 } from './routes/index.js';
 import { syncAllActiveUsers } from './lib/supabaseSync.js';
 
@@ -164,6 +165,9 @@ app.route('/api/v1/bot', botRouter);
 
 // Admin routes (authenticated with admin key)
 app.route('/api/v1/admin', adminRouter);
+
+// Seasons routes (public)
+app.route('/api/v1/seasons', seasonsRouter);
 
 // Mount v1 API
 app.route('/api/v1', v1);

@@ -7,3 +7,4 @@ export { anticheatRouter } from './anticheat.js';
 export { socialRouter } from './social.js';
 export { airdropRouter } from './airdrop.js';
 export { adminRouter } from './admin.js';
+export { seasonsRouter } from './seasons.js';

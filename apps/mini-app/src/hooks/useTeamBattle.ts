@@ -40,7 +40,8 @@ export function useTeamBattle(): UseTeamBattleReturn {
       setIsLoading(true);
       setError(null);
 
-      const response = await fetch(`${API_URL}/api/v1/leaderboard/teams`);
+      // Use new seasons/battle endpoint (no names, just totals)
+      const response = await fetch(`${API_URL}/api/v1/seasons/battle`);
 
       if (!response.ok) {
         throw new Error('Failed to fetch team scores');
@@ -48,19 +49,10 @@ export function useTeamBattle(): UseTeamBattleReturn {
 
       const data = await response.json();
 
-      if (data.success && data.data?.teams) {
-        const teams = data.data.teams as Array<{
-          team: string;
-          totalScore: number;
-          playerCount: number;
-        }>;
-
-        const collaTeam = teams.find(t => t.team === 'colla');
-        const cambaTeam = teams.find(t => t.team === 'camba');
-
+      if (data.success && data.data) {
         const newScores: TeamScores = {
-          colla: collaTeam?.totalScore || 0,
-          camba: cambaTeam?.totalScore || 0,
+          colla: data.data.colla || 0,
+          camba: data.data.camba || 0,
           lastUpdated: now,
         };
 

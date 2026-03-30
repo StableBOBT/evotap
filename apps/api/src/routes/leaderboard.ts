@@ -46,15 +46,13 @@ function getLeaderboardKey(period: string): string {
 
 /**
  * Parse leaderboard entries from Redis ZREVRANGE result
+ * PRIVACY: No personal data, only rank and points
  */
 interface LeaderboardEntry {
   rank: number;
-  telegramId: number;
-  username: string | null;
-  firstName: string;
   points: number;
-  level: number;
   isCurrentUser?: boolean;
+  team?: string;
 }
 
 async function parseLeaderboardEntries(
@@ -76,17 +74,14 @@ async function parseLeaderboardEntries(
     const score = parseFloat(scoreStr);
     const rank = startRank + i / 2 + 1;
 
-    // Load user state for display info
+    // Load user state for team info only
     const userState = await loadUserState(redis, telegramId);
 
     entries.push({
       rank,
-      telegramId,
-      username: null, // Not stored in Redis, would need Supabase
-      firstName: `Player ${telegramId.toString().slice(-4)}`,
       points: Math.floor(score),
-      level: userState?.level || 1,
       isCurrentUser: currentUserId === telegramId,
+      team: userState?.team || undefined,
     });
   }
 
@@ -138,6 +133,7 @@ export const leaderboardRouter = new Hono<{
         total,
         userRank,
         userScore,
+        period,
       },
     });
   })

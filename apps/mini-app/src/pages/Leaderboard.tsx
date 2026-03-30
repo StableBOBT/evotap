@@ -43,8 +43,8 @@ export function LeaderboardPage() {
   const refetch = viewMode === 'global' ? refetchGlobal : refetchTeam;
 
   const leaderboard = viewMode === 'global'
-    ? leaderboardData?.leaderboard
-    : teamData?.leaderboard;
+    ? leaderboardData?.entries
+    : teamData?.entries;
 
   const userRank = viewMode === 'global'
     ? leaderboardData?.userRank
@@ -219,57 +219,39 @@ export function LeaderboardPage() {
           </div>
         )}
 
-        {/* Leaderboard entries */}
+        {/* Leaderboard entries - Anonymous, only rank and points */}
         {!isLoading && !error && leaderboard && leaderboard.length > 0 && (
           <div className="space-y-2">
             {leaderboard.map((entry) => (
               <div
-                key={entry.telegramId}
+                key={entry.rank}
                 className="flex items-center gap-3 p-3 bg-tg-secondary-bg rounded-lg"
               >
                 {/* Rank */}
                 <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${getMedalStyle(entry.rank)}`}
+                  className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold ${getMedalStyle(entry.rank)}`}
                 >
                   {getMedal(entry.rank)}
                 </div>
 
-                {/* Avatar */}
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-medium">
-                  {entry.firstName[0]?.toUpperCase() || '?'}
-                </div>
-
-                {/* Name & level */}
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-tg-text truncate">
-                    {entry.firstName}
-                    {entry.username && (
-                      <span className="text-tg-hint text-sm ml-1">
-                        @{entry.username}
-                      </span>
-                    )}
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-tg-hint">Nivel {entry.level}</span>
-                    {entry.team && viewMode === 'global' && (
-                      <span className={`text-xs px-1.5 py-0.5 rounded ${
-                        entry.team === 'colla'
-                          ? 'bg-blue-500/20 text-blue-300'
-                          : 'bg-green-500/20 text-green-300'
-                      }`}>
-                        {entry.team === 'colla' ? 'Colla' : 'Camba'}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Points */}
-                <div className="text-right">
-                  <p className="font-bold text-tg-text">
+                {/* Points - center aligned */}
+                <div className="flex-1">
+                  <p className="font-bold text-lg text-tg-text">
                     {entry.points.toLocaleString()}
                   </p>
                   <p className="text-xs text-tg-hint">puntos</p>
                 </div>
+
+                {/* Team badge (optional) */}
+                {entry.team && viewMode === 'global' && (
+                  <span className={`text-xs px-2 py-1 rounded-full ${
+                    entry.team === 'colla'
+                      ? 'bg-blue-500/20 text-blue-300'
+                      : 'bg-green-500/20 text-green-300'
+                  }`}>
+                    {entry.team === 'colla' ? 'Colla' : 'Camba'}
+                  </span>
+                )}
               </div>
             ))}
           </div>

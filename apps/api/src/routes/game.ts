@@ -15,6 +15,7 @@ import {
   type UserGameState,
 } from '../lib/redis.js';
 import { antiCheatCheck } from '../lib/anticheat.js';
+import { getCurrentSeason, addSeasonPoints, createSeason, SEASON_CONFIG } from '../lib/seasons.js';
 
 // Schemas
 const TapRequestSchema = z.object({
@@ -209,8 +210,14 @@ export const gameRouter = new Hono<{
     const weekKey = getCurrentWeekKey();
     const monthKey = getCurrentMonthKey();
 
+    // Get or create current season
+    let season = await getCurrentSeason(redis);
+    if (!season) {
+      season = await createSeason(redis, 1, 'Season 1: Genesis', new Date(), SEASON_CONFIG.BASE_PRIZE_POOL);
+    }
+
     await Promise.all([
-      // Global leaderboard
+      // Global leaderboard (lifetime)
       redis.zincrby(REDIS_KEYS.leaderboardGlobal, pointsEarned, String(telegramId)),
       // Daily leaderboard
       redis.zincrby(REDIS_KEYS.leaderboardDaily(dateKey), pointsEarned, String(telegramId)),
@@ -230,6 +237,8 @@ export const gameRouter = new Hono<{
             String(telegramId)
           )
         : Promise.resolve(0),
+      // Season leaderboard (for current season)
+      addSeasonPoints(redis, season.id, telegramId, pointsEarned, state.team, state.department),
     ]);
 
     return c.json({
