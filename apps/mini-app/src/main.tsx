@@ -24,10 +24,10 @@ const queryClient = new QueryClient({
   },
 });
 
-// TON Connect manifest URL
+// TON Connect manifest URL - must be publicly accessible
 const MANIFEST_URL =
   import.meta.env.VITE_TONCONNECT_MANIFEST_URL ||
-  'https://evotap.app/tonconnect-manifest.json';
+  'https://ton-miniapp-bolivia-one.vercel.app/tonconnect-manifest.json';
 
 // Root element
 const rootElement = document.getElementById('root');

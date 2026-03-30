@@ -43,6 +43,9 @@ export interface RedisClient {
   smembers(key: string): Promise<string[]>;
   srem(key: string, ...members: string[]): Promise<number>;
   scard(key: string): Promise<number>;
+
+  // Key operations
+  keys(pattern: string): Promise<string[]>;
 }
 
 /**
@@ -151,6 +154,9 @@ export function createRedisClient(env: Env): RedisClient {
     smembers: (key) => command<string[]>('SMEMBERS', key),
     srem: (key, ...members) => command<number>('SREM', key, ...members),
     scard: (key) => command<number>('SCARD', key),
+
+    // Key operations
+    keys: (pattern) => command<string[]>('KEYS', pattern),
   };
 }
 
@@ -315,6 +321,15 @@ export async function getOrCreateUserState(
 
     // Register referral code
     await redis.set(REDIS_KEYS.referralCode(referralCode), String(telegramId));
+
+    // Add to global leaderboard with initial points (0)
+    await redis.zadd(REDIS_KEYS.leaderboardGlobal, state.points, String(telegramId));
+  } else {
+    // Ensure existing users are also in leaderboard
+    const existsInLeaderboard = await redis.zscore(REDIS_KEYS.leaderboardGlobal, String(telegramId));
+    if (existsInLeaderboard === null) {
+      await redis.zadd(REDIS_KEYS.leaderboardGlobal, state.points, String(telegramId));
+    }
   }
 
   return state;

@@ -87,7 +87,7 @@ export async function handleStart(ctx: BotContext, env: Env): Promise<void> {
   }
 
   // Fetch real player count from API
-  let playerCount = 127500; // Default fallback
+  let playerCount = 0; // No fake numbers - show real count only
   try {
     const playersResult = await api.getTotalPlayers();
     if (playersResult.success && playersResult.data) {
@@ -121,8 +121,12 @@ function getWelcomeMessage(
   referrerName?: string,
   bonusPoints: number = REFERRAL_BONUS_POINTS
 ): string {
-  const formattedCount = formatPlayerCount(playerCount);
   const formattedBonus = bonusPoints.toLocaleString();
+
+  // Build player count line - only show if we have real players
+  const playerLine = playerCount > 0
+    ? `<b>${formatPlayerCount(playerCount)}+ players</b> already joined\n`
+    : '';
 
   // Referral welcome (higher conversion)
   if (referrerName) {
@@ -134,8 +138,7 @@ Hey <b>${firstName}</b>! ${referrerName === 'a friend' ? 'A friend' : `<b>${refe
 <b>+${formattedBonus} bonus points</b> credited to your account!
 Your friend also got <b>+${formattedBonus} points</b>.
 
-<b>${formattedCount}+ players</b> already joined
-<b>$EVO Airdrop</b> confirmed for top players
+${playerLine}<b>$EVO Airdrop</b> confirmed for top players
 
 Tap the button below to start earning:
 `.trim();
@@ -149,8 +152,7 @@ Welcome, <b>${firstName}</b>!
 
 Tap to earn. Invite friends. Get $EVO.
 
-<b>${formattedCount}+ players</b> already joined
-<b>$EVO Airdrop</b> confirmed for early players
+${playerLine}<b>$EVO Airdrop</b> confirmed for early players
 
 Start now. Claim your daily bonus:
 `.trim();

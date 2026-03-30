@@ -89,16 +89,15 @@ export const adminRouter = new Hono<{
       // Get total users (from global leaderboard)
       const totalUsers = await redis.zcard('leaderboard:global');
 
-      // Get active users (played in last 24h)
-      const yesterday = Date.now() - 24 * 60 * 60 * 1000;
-      const activeCount = await redis.zcount('leaderboard:global', yesterday, '+inf');
-
-      // Get total points in system
-      const topUsers = await redis.zrange('leaderboard:global', 0, -1, { withScores: true });
+      // Get total points in system (using zrevrange with scores)
+      const topUsersData = await redis.zrevrange('leaderboard:global', 0, 999, true);
       let totalPoints = 0;
-      for (let i = 1; i < topUsers.length; i += 2) {
-        totalPoints += topUsers[i] as number;
+      for (let i = 1; i < topUsersData.length; i += 2) {
+        totalPoints += parseFloat(topUsersData[i] || '0');
       }
+
+      // Active count approximation (total users for now)
+      const activeCount = totalUsers;
 
       // Get banned users count
       const banKeys = await redis.keys('anticheat:banned:*');
@@ -158,10 +157,7 @@ export const adminRouter = new Hono<{
     const limit = parseInt(c.req.query('limit') || '50');
 
     try {
-      const topUsers = await redis.zrange('leaderboard:global', 0, limit - 1, {
-        rev: true,
-        withScores: true,
-      });
+      const topUsers = await redis.zrevrange('leaderboard:global', 0, limit - 1, true);
 
       const users: Array<{
         telegramId: number;
@@ -343,16 +339,16 @@ export const adminRouter = new Hono<{
       if (duration) {
         const expiresAt = new Date(Date.now() + duration * 60 * 60 * 1000);
         banData.expiresAt = expiresAt.toISOString();
-        await redis.hset(banKey, banData);
+        await redis.hmset(banKey, banData);
         // Set expiry on the key
         await redis.expire(banKey, duration * 60 * 60);
       } else {
-        await redis.hset(banKey, banData);
+        await redis.hmset(banKey, banData);
       }
 
       // Update trust score to 0
       const trustKey = `anticheat:trust:${telegramId}`;
-      await redis.hset(trustKey, { score: '0' });
+      await redis.hset(trustKey, 'score', '0');
 
       return c.json({
         success: true,
@@ -384,7 +380,7 @@ export const adminRouter = new Hono<{
 
       // Reset trust score to default
       const trustKey = `anticheat:trust:${telegramId}`;
-      await redis.hset(trustKey, { score: '50' });
+      await redis.hset(trustKey, 'score', '50');
 
       return c.json({
         success: true,
@@ -471,4 +467,62 @@ export const adminRouter = new Hono<{
         activities: [],
       },
     });
+  })
+
+  // POST /admin/reset - Reset all Redis data (DANGEROUS - use with caution)
+  .post('/reset', async (c) => {
+    const redis = createRedisClient(c.env);
+    const confirmReset = c.req.query('confirm');
+
+    if (confirmReset !== 'yes-delete-everything') {
+      return c.json({
+        success: false,
+        error: 'Add ?confirm=yes-delete-everything to confirm reset',
+        code: 'CONFIRMATION_REQUIRED',
+      }, 400);
+    }
+
+    try {
+      // Get all keys and delete them
+      const patterns = [
+        'user:*',
+        'leaderboard:*',
+        'referral:*',
+        'anticheat:*',
+        'ratelimit:*',
+        'session:*',
+        'device:*',
+        'airdrop:*',
+        'social:*',
+        'nonce:*',
+      ];
+
+      let deletedCount = 0;
+
+      for (const pattern of patterns) {
+        const keys = await redis.keys(pattern);
+        if (keys.length > 0) {
+          for (const key of keys) {
+            await redis.del(key);
+            deletedCount++;
+          }
+        }
+      }
+
+      return c.json({
+        success: true,
+        data: {
+          message: 'All Redis data has been reset',
+          deletedKeys: deletedCount,
+          resetAt: new Date().toISOString(),
+        },
+      });
+    } catch (error) {
+      console.error('[Admin] Error resetting data:', error);
+      return c.json({
+        success: false,
+        error: 'Failed to reset data',
+        code: 'RESET_ERROR',
+      }, 500);
+    }
   });

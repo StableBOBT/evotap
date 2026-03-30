@@ -347,16 +347,50 @@ export const gameRouter = new Hono<{
     if (updatedState.points > currentState.points) {
       const diff = updatedState.points - currentState.points;
       await redis.zincrby(REDIS_KEYS.leaderboardGlobal, diff, String(telegramId));
+    }
 
-      if (updatedState.team) {
+    // Handle team leaderboard - add/update when team changes or points increase
+    const teamChanged = team && team !== currentState.team;
+    if (updatedState.team) {
+      if (teamChanged) {
+        // Remove from old team leaderboard if exists
+        if (currentState.team && currentState.team !== updatedState.team) {
+          await redis.zrem(REDIS_KEYS.leaderboardTeam(currentState.team), String(telegramId));
+        }
+        // Add to new team leaderboard with full points
+        await redis.zadd(
+          REDIS_KEYS.leaderboardTeam(updatedState.team),
+          updatedState.points,
+          String(telegramId)
+        );
+      } else if (updatedState.points > currentState.points) {
+        // Same team, just update points
+        const diff = updatedState.points - currentState.points;
         await redis.zincrby(
           REDIS_KEYS.leaderboardTeam(updatedState.team),
           diff,
           String(telegramId)
         );
       }
+    }
 
-      if (updatedState.department) {
+    // Handle department leaderboard - add/update when department changes or points increase
+    const deptChanged = department && department !== currentState.department;
+    if (updatedState.department) {
+      if (deptChanged) {
+        // Remove from old department leaderboard if exists
+        if (currentState.department && currentState.department !== updatedState.department) {
+          await redis.zrem(REDIS_KEYS.leaderboardDepartment(currentState.department), String(telegramId));
+        }
+        // Add to new department leaderboard with full points
+        await redis.zadd(
+          REDIS_KEYS.leaderboardDepartment(updatedState.department),
+          updatedState.points,
+          String(telegramId)
+        );
+      } else if (updatedState.points > currentState.points) {
+        // Same department, just update points
+        const diff = updatedState.points - currentState.points;
         await redis.zincrby(
           REDIS_KEYS.leaderboardDepartment(updatedState.department),
           diff,
