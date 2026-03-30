@@ -5,13 +5,8 @@ import { AchievementsList } from './components/AchievementsList';
 import { useUIStore } from './stores/uiStore';
 import { useGameStore } from './stores/gameStore';
 
-// Loading stages with their progress weights
-const LOADING_STAGES = {
-  SDK_INIT: { weight: 20, label: 'Initializing SDK...' },
-  CLOUD_STORAGE: { weight: 40, label: 'Loading your progress...' },
-  ASSETS: { weight: 30, label: 'Preparing game...' },
-  READY: { weight: 10, label: 'Almost ready...' },
-} as const;
+// Fast loading - max 2 seconds total
+const MAX_LOAD_TIME = 2000;
 
 export function App() {
   const { currentPage } = useUIStore();
@@ -21,66 +16,56 @@ export function App() {
   const [loadProgress, setLoadProgress] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Simulate loading progress with actual initialization
+  // Fast initialization with hard timeout
   useEffect(() => {
     let mounted = true;
+    const startTime = Date.now();
 
-    const runInitialization = async () => {
-      // Stage 1: SDK initialization (simulated - already done in main.tsx)
-      await simulateProgress(LOADING_STAGES.SDK_INIT.weight, 300);
-      if (!mounted) return;
+    const runInit = async () => {
+      // Start progress animation immediately
+      const progressInterval = setInterval(() => {
+        if (!mounted) {
+          clearInterval(progressInterval);
+          return;
+        }
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min((elapsed / MAX_LOAD_TIME) * 100, 95);
+        setLoadProgress(progress);
+      }, 50);
 
-      // Stage 2: Cloud storage / game state initialization
-      setLoadProgress((prev) => prev + 5);
+      // Initialize game state (has its own timeout)
       try {
         await initialize();
-      } catch (error) {
-        console.warn('[App] Game initialization warning:', error);
+      } catch (e) {
+        console.warn('[App] Init warning:', e);
       }
-      if (!mounted) return;
-      setLoadProgress(LOADING_STAGES.SDK_INIT.weight + LOADING_STAGES.CLOUD_STORAGE.weight);
 
-      // Stage 3: Asset preloading (simulated for smooth UX)
-      await simulateProgress(LOADING_STAGES.ASSETS.weight, 400);
-      if (!mounted) return;
+      // Clear progress interval and complete
+      clearInterval(progressInterval);
 
-      // Stage 4: Final ready state
-      await simulateProgress(LOADING_STAGES.READY.weight, 200);
-      if (!mounted) return;
-
-      setLoadProgress(100);
-      setIsLoading(false);
+      if (mounted) {
+        setLoadProgress(100);
+        // Small delay for smooth animation
+        setTimeout(() => {
+          if (mounted) setIsLoading(false);
+        }, 200);
+      }
     };
 
-    const simulateProgress = (amount: number, duration: number): Promise<void> => {
-      return new Promise((resolve) => {
-        const steps = 10;
-        const stepDuration = duration / steps;
-        const stepAmount = amount / steps;
-        let currentStep = 0;
+    // Force complete after MAX_LOAD_TIME regardless
+    const forceComplete = setTimeout(() => {
+      if (mounted && isLoading) {
+        console.warn('[App] Force completing load');
+        setLoadProgress(100);
+        setIsLoading(false);
+      }
+    }, MAX_LOAD_TIME);
 
-        const interval = setInterval(() => {
-          if (!mounted) {
-            clearInterval(interval);
-            resolve();
-            return;
-          }
-
-          currentStep++;
-          setLoadProgress((prev) => Math.min(prev + stepAmount, 100));
-
-          if (currentStep >= steps) {
-            clearInterval(interval);
-            resolve();
-          }
-        }, stepDuration);
-      });
-    };
-
-    runInitialization();
+    runInit();
 
     return () => {
       mounted = false;
+      clearTimeout(forceComplete);
     };
   }, [initialize]);
 

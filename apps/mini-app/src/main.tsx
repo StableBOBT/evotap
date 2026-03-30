@@ -2,13 +2,17 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { TonConnectUIProvider } from '@tonconnect/ui-react';
-import { init } from '@telegram-apps/sdk-react';
+import { init, miniApp } from '@telegram-apps/sdk-react';
 import { App } from './App';
 import './styles/index.css';
 
-// Initialize Telegram Mini Apps SDK
+// Initialize Telegram Mini Apps SDK with error handling
 try {
   init();
+  // Signal ready IMMEDIATELY to remove Telegram's loading screen
+  if (miniApp.ready.isAvailable()) {
+    miniApp.ready();
+  }
 } catch (e) {
   console.warn('Failed to initialize TMA SDK:', e);
 }

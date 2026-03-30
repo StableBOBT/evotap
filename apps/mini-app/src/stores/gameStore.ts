@@ -300,9 +300,22 @@ export const useGameStore = create<GameState>()((set, get) => ({
   pendingTaps: 0,
   isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true,
 
-  // Initialize from CloudStorage
+  // Initialize from CloudStorage with timeout
   initialize: async () => {
-    const isAvailable = cloudStorage.getItem.isAvailable();
+    // Helper: wrap promise with timeout
+    const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T | null> => {
+      return Promise.race([
+        promise,
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
+      ]);
+    };
+
+    let isAvailable = false;
+    try {
+      isAvailable = cloudStorage.getItem.isAvailable();
+    } catch {
+      console.warn('[GameStore] CloudStorage availability check failed');
+    }
     set({ isCloudAvailable: isAvailable });
 
     if (!isAvailable) {
@@ -313,7 +326,8 @@ export const useGameStore = create<GameState>()((set, get) => ({
     }
 
     try {
-      const stored = await cloudStorage.getItem(STORAGE_KEY);
+      // Timeout after 3 seconds to prevent hanging
+      const stored = await withTimeout(cloudStorage.getItem(STORAGE_KEY), 3000);
 
       if (stored) {
         const data = JSON.parse(stored);
@@ -357,11 +371,12 @@ export const useGameStore = create<GameState>()((set, get) => ({
           isInitialized: true,
         });
 
-        console.log('[GameStore] Loaded from CloudStorage:', data);
+        console.log('[GameStore] Loaded from CloudStorage');
       } else {
-        // First time - save initial state
+        // First time or timeout - use defaults
         set({ isInitialized: true, lastSyncedAt: Date.now() });
-        await get().syncToCloud();
+        // Don't await sync on first load - do it in background
+        get().syncToCloud().catch(() => {});
         console.log('[GameStore] Initialized new user');
       }
 
