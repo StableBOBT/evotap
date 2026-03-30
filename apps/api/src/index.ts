@@ -50,6 +50,10 @@ app.use(
       if (origin?.includes('evotap.app')) {
         return origin;
       }
+      // Allow Vercel preview deployments
+      if (origin?.includes('vercel.app')) {
+        return origin;
+      }
       return null;
     },
     allowHeaders: [
