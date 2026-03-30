@@ -203,10 +203,15 @@ export interface UserGameState {
   team: string | null;
   department: string | null;
   referralCode: string;
-  referredBy: number | null;
+  referredBy: string | null;
   referralCount: number;
   walletAddress: string | null;
   createdAt: string;
+  // User info from Telegram
+  firstName?: string;
+  lastName?: string;
+  username?: string;
+  isPremium?: boolean;
 }
 
 /**
@@ -283,10 +288,14 @@ export async function loadUserState(
     team: data.team || null,
     department: data.department || null,
     referralCode: data.referralCode || '',
-    referredBy: data.referredBy ? parseInt(data.referredBy, 10) : null,
+    referredBy: data.referredBy || null,
     referralCount: parseInt(data.referralCount || '0', 10) || 0,
     walletAddress: data.walletAddress || null,
     createdAt: data.createdAt || new Date().toISOString(),
+    firstName: data.firstName || undefined,
+    lastName: data.lastName || undefined,
+    username: data.username || undefined,
+    isPremium: data.isPremium === 'true',
   };
 }
 
