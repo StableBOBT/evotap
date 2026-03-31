@@ -104,7 +104,7 @@ export function ProfilePage() {
         <h2 className="font-medium text-white mb-3 flex items-center gap-2">
           <span>📊</span> Estadisticas
         </h2>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
           {stats.map((stat) => (
             <div
               key={stat.label}
@@ -277,7 +277,7 @@ export function ProfilePage() {
         </h2>
 
         {unlockedAchievements.length > 0 ? (
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
             {unlockedAchievements.map((achievementId) => {
               const achievement = ACHIEVEMENTS[achievementId as AchievementId];
               if (!achievement) return null;
@@ -304,7 +304,7 @@ export function ProfilePage() {
         {unlockedAchievements.length < Object.keys(ACHIEVEMENTS).length && (
           <div className="mt-3 pt-3 border-t border-white/10">
             <p className="text-xs text-white/40 mb-2">Proximos logros:</p>
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
               {Object.entries(ACHIEVEMENTS)
                 .filter(([id]) => !unlockedAchievements.includes(id as AchievementId))
                 .slice(0, 4)

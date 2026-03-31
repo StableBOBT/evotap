@@ -46,9 +46,32 @@ export function GamePage() {
   // Detect user region
   const { region: detectedRegion } = useRegionDetection();
 
-  // Initialize from CloudStorage on mount
+  // Initialize from CloudStorage on mount - with safety timeout
   useEffect(() => {
-    initialize();
+    let mounted = true;
+
+    const init = async () => {
+      try {
+        await initialize();
+      } catch (e) {
+        console.warn('[Game] Init error:', e);
+      }
+    };
+
+    init();
+
+    // Safety: force initialized after 2 seconds regardless
+    const safetyTimeout = setTimeout(() => {
+      if (mounted && !useGameStore.getState().isInitialized) {
+        console.warn('[Game] Forcing initialized state');
+        useGameStore.setState({ isInitialized: true });
+      }
+    }, 2000);
+
+    return () => {
+      mounted = false;
+      clearTimeout(safetyTimeout);
+    };
   }, [initialize]);
 
   // Auto-set department from detected region (only valid Bolivian departments)

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { DEPARTMENTS, useGameStore, DepartmentId, TeamType } from '../stores/gameStore';
 
 // Group departments by team
@@ -30,6 +30,16 @@ export function TeamSelectionPage() {
   const [selectedDept, setSelectedDept] = useState<DepartmentId | null>(department);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [justSelected, setJustSelected] = useState(false);
+  const successTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (successTimeoutRef.current) {
+        clearTimeout(successTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const handleDepartmentSelect = (deptId: DepartmentId) => {
     setSelectedDept(deptId);
@@ -41,8 +51,8 @@ export function TeamSelectionPage() {
       selectDepartment(selectedDept);
       setShowConfirmation(false);
       setJustSelected(true);
-      // Hide success message after 3 seconds
-      setTimeout(() => setJustSelected(false), 3000);
+      // Hide success message after 3 seconds - with cleanup
+      successTimeoutRef.current = setTimeout(() => setJustSelected(false), 3000);
     }
   };
 
@@ -139,7 +149,7 @@ export function TeamSelectionPage() {
                 </div>
 
                 {/* Departments grid */}
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                   {teamData.departments.map((deptId) => {
                     const dept = DEPARTMENTS[deptId];
                     const isCurrentDept = deptId === department;
@@ -214,7 +224,7 @@ export function TeamSelectionPage() {
             </div>
 
             {/* Departments grid */}
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
               {teamData.departments.map((deptId) => {
                 const dept = DEPARTMENTS[deptId];
                 const isSelected = selectedDept === deptId;

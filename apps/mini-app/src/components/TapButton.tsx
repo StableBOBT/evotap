@@ -167,7 +167,7 @@ export function TapButton() {
       disabled={isDisabled}
       className={`
         tap-button
-        relative w-52 h-52 rounded-full
+        relative w-40 h-40 sm:w-48 sm:h-48 md:w-52 md:h-52 rounded-full
         flex items-center justify-center
         select-none cursor-pointer
         transition-transform duration-100 ease-out

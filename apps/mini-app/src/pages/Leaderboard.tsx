@@ -136,22 +136,22 @@ export function LeaderboardPage() {
 
       {/* Team stats (for team view) */}
       {viewMode === 'team' && teamData?.teamStats && (
-        <div className="grid grid-cols-3 gap-2 mb-4">
-          <div className="bg-tg-secondary-bg rounded-lg p-3 text-center">
-            <p className="text-xs text-tg-hint">Jugadores</p>
-            <p className="text-lg font-bold text-tg-text">
+        <div className="grid grid-cols-3 gap-1.5 sm:gap-2 mb-4">
+          <div className="bg-tg-secondary-bg rounded-lg p-2 sm:p-3 text-center">
+            <p className="text-[10px] sm:text-xs text-tg-hint">Jugadores</p>
+            <p className="text-sm sm:text-lg font-bold text-tg-text">
               {teamData.teamStats.totalPlayers.toLocaleString()}
             </p>
           </div>
-          <div className="bg-tg-secondary-bg rounded-lg p-3 text-center">
-            <p className="text-xs text-tg-hint">Puntos Total</p>
-            <p className="text-lg font-bold text-tg-text">
+          <div className="bg-tg-secondary-bg rounded-lg p-2 sm:p-3 text-center">
+            <p className="text-[10px] sm:text-xs text-tg-hint">Puntos</p>
+            <p className="text-sm sm:text-lg font-bold text-tg-text">
               {teamData.teamStats.totalPoints.toLocaleString()}
             </p>
           </div>
-          <div className="bg-tg-secondary-bg rounded-lg p-3 text-center">
-            <p className="text-xs text-tg-hint">Nivel Prom.</p>
-            <p className="text-lg font-bold text-tg-text">
+          <div className="bg-tg-secondary-bg rounded-lg p-2 sm:p-3 text-center">
+            <p className="text-[10px] sm:text-xs text-tg-hint">Nivel</p>
+            <p className="text-sm sm:text-lg font-bold text-tg-text">
               {teamData.teamStats.averageLevel.toFixed(1)}
             </p>
           </div>
