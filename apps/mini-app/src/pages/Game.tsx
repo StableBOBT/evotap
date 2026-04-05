@@ -13,6 +13,7 @@ import { useUIStore } from '../stores/uiStore';
 import { useHaptics } from '../hooks/useHaptics';
 import { useTeamBattle, useRegionDetection } from '../hooks/useTeamBattle';
 import { useGameSync } from '../hooks/useGameSync';
+import { useTMA } from '../hooks/useTMA';
 
 // Debug logging (temporarily enabled for diagnosis)
 const DEBUG = true;
@@ -46,6 +47,9 @@ export function GamePage() {
 
   // Sync game state with backend API
   const { isSyncing: isApiSyncing } = useGameSync();
+
+  // Get TMA data for debugging
+  const { initDataRaw } = useTMA();
 
   // Fetch team battle scores
   const { scores } = useTeamBattle();
@@ -151,6 +155,18 @@ export function GamePage() {
       >
         ?
       </button>
+
+      {/* Debug: Auth status warning */}
+      {!initDataRaw && (
+        <div className="w-full max-w-sm mb-2 px-4 py-2 bg-yellow-500/20 border border-yellow-500/50 rounded-lg">
+          <p className="text-xs text-yellow-200 text-center font-semibold">
+            ⚠️ Sin autenticación Telegram
+          </p>
+          <p className="text-[10px] text-yellow-200/60 text-center mt-1">
+            Taps solo guardan localmente. Rankings y Team Battle no actualizan. Abre desde @EVOtapBot.
+          </p>
+        </div>
+      )}
 
       {/* Battle Bar - Colla vs Camba */}
       <div className="w-full max-w-sm">
