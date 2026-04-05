@@ -7,7 +7,6 @@ import {
   backButton,
   hapticFeedback,
   viewport,
-  retrieveLaunchParams,
 } from '@telegram-apps/sdk-react';
 
 // Debug logging (temporarily enabled for diagnosis)
