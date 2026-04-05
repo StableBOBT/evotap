@@ -62,3 +62,4 @@ SECRETS.local.md
 
 .vercel
 .env*.local
+.env.bot
