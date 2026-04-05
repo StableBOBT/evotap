@@ -7,23 +7,29 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { TonConnectUIProvider } from '@tonconnect/ui-react';
-import { init, miniApp } from '@telegram-apps/sdk-react';
 import { App } from './App';
 import './styles/index.css';
+import { initializeTelegramSDKWithRetry } from './lib/telegram-sdk';
 
 console.log('=== IMPORTS LOADED ===');
 
-// Initialize Telegram SDK immediately (non-blocking)
-try {
-  console.log('[TMA] Initializing SDK...');
-  init();
-  if (miniApp?.ready?.isAvailable?.()) {
-    miniApp.ready();
+// Start Telegram SDK initialization immediately (non-blocking, runs in background)
+console.log('[Main] Starting Telegram SDK initialization...');
+initializeTelegramSDKWithRetry(3, 1000).then((result) => {
+  console.log('[Main] SDK initialization result:', result);
+  if (!result.success) {
+    console.error('[Main] ❌ SDK initialization failed:', result.error);
+    if (result.warnings.length > 0) {
+      console.warn('[Main] Warnings:', result.warnings);
+    }
+  } else {
+    console.log('[Main] ✅ SDK initialized successfully');
+    console.log('[Main] initDataRaw:', result.initDataRaw ? result.initDataRaw.slice(0, 50) + '...' : 'null');
+    console.log('[Main] userId:', result.userId);
   }
-  console.log('[TMA] SDK initialized');
-} catch (e) {
-  console.warn('[TMA] SDK init:', e);
-}
+}).catch((error) => {
+  console.error('[Main] Fatal SDK initialization error:', error);
+});
 
 // Eruda for debugging (only in development)
 if (import.meta.env.VITE_ENVIRONMENT === 'development') {

@@ -54,10 +54,30 @@ interface UseTMAReturn {
 // Safe wrapper that catches launch params errors
 function useSafeLaunchParams() {
   try {
-    return useLaunchParams();
+    const params = useLaunchParams();
+    log('useLaunchParams result:', {
+      hasInitDataRaw: !!params?.initDataRaw,
+      initDataRawPreview: params?.initDataRaw ? String(params.initDataRaw).slice(0, 50) + '...' : 'null',
+    });
+    return params;
   } catch (error) {
     console.warn('[useTMA] Not in Telegram, using mock params:', error);
-    // Return mock params for development outside Telegram
+
+    // Fallback: Try to get from window.Telegram.WebApp
+    if (typeof window !== 'undefined' && window.Telegram?.WebApp) {
+      const twa = window.Telegram.WebApp;
+      log('Fallback to window.Telegram.WebApp', {
+        hasInitData: !!twa.initData,
+        initDataPreview: twa.initData ? twa.initData.slice(0, 50) + '...' : 'null',
+      });
+
+      return {
+        initDataRaw: twa.initData || null,
+        initData: twa.initDataUnsafe || null,
+      } as any;
+    }
+
+    // Last resort: return null params
     return {
       initDataRaw: null,
       initData: null,
