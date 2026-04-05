@@ -818,16 +818,34 @@ export const useGameStore = create<GameState>()((set, get) => ({
   syncFromServer: (serverState: ServerState) => {
     const state = get();
 
-    // Server is source of truth for these values
+    // Smart sync: Only update points if:
+    // 1. No pending taps (safe to sync)
+    // 2. Server has MORE points (someone else made progress, or taps were processed)
+    // Never overwrite local points with lower server value to prevent losing taps
+    const hasPendingTaps = state.pendingTaps > 0;
+    const serverHasMore = serverState.points > state.points;
+    const shouldUpdatePoints = !hasPendingTaps && serverHasMore;
+
+    // For points: use whichever is higher to prevent regressions
+    const finalPoints = shouldUpdatePoints
+      ? serverState.points
+      : Math.max(state.points, serverState.points);
+
     set({
-      points: serverState.points,
+      points: finalPoints,
       energy: serverState.energy,
       maxEnergy: serverState.maxEnergy,
       level: serverState.level,
       totalTaps: serverState.totalTaps ?? state.totalTaps,
     });
 
-    console.log('[GameStore] Synced from server:', serverState);
+    console.log('[GameStore] Synced from server:', {
+      server: serverState.points,
+      local: state.points,
+      final: finalPoints,
+      pendingTaps: state.pendingTaps,
+      strategy: hasPendingTaps ? 'kept-local' : serverHasMore ? 'used-server' : 'used-max',
+    });
   },
 
   // Clear pending taps after successful API sync
