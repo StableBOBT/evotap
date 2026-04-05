@@ -21,11 +21,6 @@ export function useGameSync() {
   const isSyncingRef = useRef(false);
   const isTapSyncingRef = useRef(false);
 
-  // Keep initDataRef current
-  useEffect(() => {
-    initDataRef.current = initDataRaw;
-  }, [initDataRaw]);
-
   // Get store values with stable selectors
   const clearPendingTaps = useGameStore((s) => s.clearPendingTaps);
   const syncFromServer = useGameStore((s) => s.syncFromServer);
@@ -173,6 +168,25 @@ export function useGameSync() {
       tapMutate({ taps, auth });
     }
   }, [clearPendingTaps, tapMutate]); // Only stable refs
+
+  // Keep initDataRef current AND sync when auth becomes available
+  useEffect(() => {
+    const wasNull = initDataRef.current === null;
+    const nowHasValue = initDataRaw !== null;
+
+    initDataRef.current = initDataRaw;
+
+    // If auth just became available, sync any pending taps immediately
+    if (wasNull && nowHasValue) {
+      console.log('[useGameSync] ✅ Auth became available, syncing pending taps');
+      const pendingTaps = useGameStore.getState().pendingTaps;
+      if (pendingTaps > 0) {
+        console.log('[useGameSync] Found', pendingTaps, 'pending taps, syncing now');
+        // Use the syncTaps callback which already has all the logic
+        setTimeout(() => syncTaps(), 100);
+      }
+    }
+  }, [initDataRaw, syncTaps]);
 
   // Periodic sync interval - setup once
   useEffect(() => {

@@ -13,24 +13,6 @@ import { initializeTelegramSDKWithRetry } from './lib/telegram-sdk';
 
 console.log('=== IMPORTS LOADED ===');
 
-// Start Telegram SDK initialization immediately (non-blocking, runs in background)
-console.log('[Main] Starting Telegram SDK initialization...');
-initializeTelegramSDKWithRetry(3, 1000).then((result) => {
-  console.log('[Main] SDK initialization result:', result);
-  if (!result.success) {
-    console.error('[Main] ❌ SDK initialization failed:', result.error);
-    if (result.warnings.length > 0) {
-      console.warn('[Main] Warnings:', result.warnings);
-    }
-  } else {
-    console.log('[Main] ✅ SDK initialized successfully');
-    console.log('[Main] initDataRaw:', result.initDataRaw ? result.initDataRaw.slice(0, 50) + '...' : 'null');
-    console.log('[Main] userId:', result.userId);
-  }
-}).catch((error) => {
-  console.error('[Main] Fatal SDK initialization error:', error);
-});
-
 // Eruda for debugging (only in development)
 if (import.meta.env.VITE_ENVIRONMENT === 'development') {
   console.log('[Main] Loading Eruda for development...');
@@ -68,41 +50,92 @@ if (!rootElement) {
 console.log('[Main] Root element found:', rootElement);
 
 // Show immediate feedback
-rootElement.innerHTML = '<div style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);color:white;font-size:20px;text-align:center;"><div style="margin-bottom:20px;">🔄 JavaScript is loading...</div><div style="font-size:14px;opacity:0.5;">Check console (F12)</div></div>';
+rootElement.innerHTML = '<div style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);color:white;font-size:20px;text-align:center;"><div style="margin-bottom:20px;">🔄 Initializing Telegram SDK...</div><div style="font-size:14px;opacity:0.5;">Please wait...</div></div>';
 console.log('[Main] Temporary loading UI set');
 
-// Render app with error boundary fallback
-try {
-  console.log('[Main] Creating React root...');
-  const root = createRoot(rootElement);
-  console.log('[Main] React root created, rendering...');
+// CRITICAL: Wait for SDK to initialize BEFORE rendering React
+// This prevents race conditions where components mount before initData is available
+async function initializeAndRender() {
+  console.log('[Main] Starting SDK initialization (blocking React mount)...');
 
-  root.render(
-    <StrictMode>
-      <TonConnectUIProvider
-        manifestUrl={MANIFEST_URL}
-        actionsConfiguration={{
-          twaReturnUrl: 'https://t.me/EVOtapBot',
-        }}
-      >
-        <QueryClientProvider client={queryClient}>
-          <App />
-        </QueryClientProvider>
-      </TonConnectUIProvider>
-    </StrictMode>
-  );
+  const sdkResult = await initializeTelegramSDKWithRetry(3, 1000);
 
-  console.log('[Main] React render called successfully!');
-} catch (error) {
-  console.error('[Main] Render failed:', error);
-  rootElement.innerHTML = `
-    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;color:white;font-family:system-ui;text-align:center;padding:20px;">
-      <h1 style="font-size:24px;margin-bottom:16px;">EVO Tap</h1>
-      <p style="opacity:0.7;">Error loading app. Please try again.</p>
-      <p style="opacity:0.5;font-size:12px;margin-top:10px;">Error: ${error instanceof Error ? error.message : 'Unknown'}</p>
-      <button onclick="location.reload()" style="margin-top:20px;padding:12px 24px;background:#6366f1;color:white;border:none;border-radius:8px;cursor:pointer;">
-        Reload
-      </button>
-    </div>
-  `;
+  console.log('[Main] SDK initialization complete:', {
+    success: sdkResult.success,
+    hasInitDataRaw: !!sdkResult.initDataRaw,
+    userId: sdkResult.userId,
+    error: sdkResult.error,
+    warnings: sdkResult.warnings,
+  });
+
+  if (!sdkResult.success) {
+    console.error('[Main] ❌ SDK initialization failed:', sdkResult.error);
+    if (sdkResult.warnings.length > 0) {
+      console.warn('[Main] Warnings:', sdkResult.warnings);
+    }
+  } else {
+    console.log('[Main] ✅ SDK initialized successfully');
+    console.log('[Main] initDataRaw:', sdkResult.initDataRaw ? sdkResult.initDataRaw.slice(0, 50) + '...' : 'null');
+    console.log('[Main] userId:', sdkResult.userId);
+  }
+
+  // Now render React app
+  try {
+    if (!rootElement) {
+      throw new Error('Root element not found');
+    }
+
+    console.log('[Main] Creating React root...');
+    const root = createRoot(rootElement);
+    console.log('[Main] React root created, rendering...');
+
+    root.render(
+      <StrictMode>
+        <TonConnectUIProvider
+          manifestUrl={MANIFEST_URL}
+          actionsConfiguration={{
+            twaReturnUrl: 'https://t.me/EVOtapBot',
+          }}
+        >
+          <QueryClientProvider client={queryClient}>
+            <App />
+          </QueryClientProvider>
+        </TonConnectUIProvider>
+      </StrictMode>
+    );
+
+    console.log('[Main] React render called successfully!');
+  } catch (error) {
+    console.error('[Main] Render failed:', error);
+    if (rootElement) {
+      rootElement.innerHTML = `
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;color:white;font-family:system-ui;text-align:center;padding:20px;">
+          <h1 style="font-size:24px;margin-bottom:16px;">EVO Tap</h1>
+          <p style="opacity:0.7;">Error loading app. Please try again.</p>
+          <p style="opacity:0.5;font-size:12px;margin-top:10px;">Error: ${error instanceof Error ? error.message : 'Unknown'}</p>
+          <button onclick="location.reload()" style="margin-top:20px;padding:12px 24px;background:#6366f1;color:white;border:none;border-radius:8px;cursor:pointer;">
+            Reload
+          </button>
+        </div>
+      `;
+    }
+  }
 }
+
+// Start initialization
+initializeAndRender().catch((error) => {
+  console.error('[Main] Fatal error during initialization:', error);
+  const el = document.getElementById('root');
+  if (el) {
+    el.innerHTML = `
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;color:white;font-family:system-ui;text-align:center;padding:20px;">
+        <h1 style="font-size:24px;margin-bottom:16px;">EVO Tap</h1>
+        <p style="opacity:0.7;">Failed to initialize. Please reload.</p>
+        <p style="opacity:0.5;font-size:12px;margin-top:10px;">Error: ${error instanceof Error ? error.message : 'Unknown'}</p>
+        <button onclick="location.reload()" style="margin-top:20px;padding:12px 24px;background:#6366f1;color:white;border:none;border-radius:8px;cursor:pointer;">
+          Reload
+        </button>
+      </div>
+    `;
+  }
+});

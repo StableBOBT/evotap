@@ -146,10 +146,32 @@ export function useTMA(): UseTMAReturn {
 
   // Get raw init data string for API auth - memoized for stability
   const initDataRaw = useMemo(() => {
-    const raw = launchParams?.initDataRaw ? String(launchParams.initDataRaw) : null;
-    log('initDataRaw computed:', raw ? `${raw.slice(0, 50)}...` : 'null');
-    return raw;
-  }, [launchParams?.initDataRaw]);
+    // Try multiple sources in order of reliability
+    let raw: string | null = null;
+
+    // Source 1: launchParams (most reliable after SDK init)
+    if (launchParams?.initDataRaw) {
+      raw = String(launchParams.initDataRaw);
+      log('initDataRaw from launchParams:', `${raw.slice(0, 50)}...`);
+      return raw;
+    }
+
+    // Source 2: window.Telegram.WebApp (fallback)
+    if (typeof window !== 'undefined' && window.Telegram?.WebApp?.initData) {
+      raw = window.Telegram.WebApp.initData;
+      log('initDataRaw from Telegram.WebApp:', `${raw.slice(0, 50)}...`);
+      return raw;
+    }
+
+    // Source 3: Check if SDK was initialized but data not in launchParams yet
+    if (initDataState?.user?.id) {
+      // SDK has user data but not raw string - this is a timing issue
+      log('⚠️ initDataState has user but no initDataRaw - SDK timing issue');
+    }
+
+    log('⚠️ initDataRaw is null from all sources');
+    return null;
+  }, [launchParams?.initDataRaw, initDataState]);
 
   // Haptic feedback helpers
   const impactLight = useCallback(() => {
