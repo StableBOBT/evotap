@@ -25,15 +25,16 @@ try {
   console.warn('[TMA] SDK init:', e);
 }
 
-// Eruda for debugging (aggressively load for diagnosis)
-console.log('[Main] Loading Eruda...');
-import('eruda').then((e) => {
-  console.log('[Main] Eruda loaded, initializing...');
-  e.default.init();
-  console.log('[Main] Eruda initialized!');
-}).catch((err) => {
-  console.error('[Main] Eruda failed to load:', err);
-});
+// Eruda for debugging (only in development)
+if (import.meta.env.VITE_ENVIRONMENT === 'development') {
+  console.log('[Main] Loading Eruda for development...');
+  import('eruda').then((e) => {
+    e.default.init();
+    console.log('[Main] Eruda initialized!');
+  }).catch((err) => {
+    console.error('[Main] Eruda failed to load:', err);
+  });
+}
 
 // TanStack Query client with conservative defaults
 const queryClient = new QueryClient({
