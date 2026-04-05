@@ -91,10 +91,17 @@ export function GamePage() {
 
   // Handle team selection (memoized)
   const handleTeamSelect = useCallback((selectedTeam: 'colla' | 'camba') => {
-    log('Team selected:', selectedTeam);
-    selectTeam(selectedTeam);
-    haptics.success();
-    // Sync is handled automatically by useGameSync watching team changes
+    log('📞 handleTeamSelect called with:', selectedTeam);
+    try {
+      log('📝 Calling selectTeam...');
+      selectTeam(selectedTeam);
+      log('✅ selectTeam completed');
+      haptics.success();
+      // Sync is handled automatically by useGameSync watching team changes
+    } catch (error) {
+      console.error('❌ Error in handleTeamSelect:', error);
+      haptics.error();
+    }
   }, [selectTeam, haptics]);
 
   // Debug: Log render state

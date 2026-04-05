@@ -2,8 +2,9 @@
 
 ## 🚀 URLs de Producción
 
-- **URL Principal**: https://ton-miniapp-bolivia.vercel.app
-- **URL Alternativa**: https://ton-miniapp-bolivia-33rxaau6z-nunalabs-projects.vercel.app
+- **URL Principal**: https://ton-miniapp-bolivia.vercel.app ✅ LIVE (HTTP 200)
+- **URL Deployment**: https://ton-miniapp-bolivia-jz70wao8i-nunalabs-projects.vercel.app
+- **Bot Telegram**: https://t.me/evoliviabot ✅ ACTIVO
 
 ## ⚙️ Configuración Aplicada
 
@@ -41,28 +42,32 @@ dist/assets/telegram-ton-CXeCyYck.js   406.08 kB │ gzip: 119.37 kB
 
 **Total gzipped**: ~266 KB
 
-## 🤖 Actualizar Bot de Telegram
+## 🤖 Bot de Telegram - CONFIGURADO ✅
 
-### Paso 1: Abrir BotFather
-1. Ir a: https://t.me/BotFather
-2. Enviar comando: `/mybots`
-3. Seleccionar: `@EVOtapBot`
-4. Seleccionar: `Bot Settings`
-5. Seleccionar: `Menu Button`
-6. Seleccionar: `Configure menu button`
+### Info del Bot
+```json
+{
+  "username": "@evoliviabot",
+  "bot_id": 8712808190,
+  "name": "evobot",
+  "menu_button": {
+    "type": "web_app",
+    "text": "🎮 Jugar EVO Tap",
+    "url": "https://ton-miniapp-bolivia.vercel.app/"
+  }
+}
+```
 
-### Paso 2: Configurar URL
-```
-URL: https://ton-miniapp-bolivia.vercel.app
-Text: Jugar EVO Tap
-```
+### Comandos Activos
+- `/start` - Iniciar el juego
+- `/play` - Jugar EVO Tap
+- `/stats` - Ver mis estadísticas
+- `/leaderboard` - Ver ranking
+- `/help` - Ayuda
 
-### Alternativa: Usar comando directo
-```
-/setmenubutton
-@EVOtapBot
-https://ton-miniapp-bolivia.vercel.app
-Jugar EVO Tap
+### Verificar Configuración
+```bash
+bash scripts/test-bot.sh
 ```
 
 ## 🧪 Verificación Post-Deploy
@@ -80,25 +85,27 @@ curl https://evotap-api.andeanlabs-58f.workers.dev/api/v1/seasons/battle
 Debe retornar JSON con datos de equipos
 
 ### 3. Probar en Telegram
-1. Abrir https://t.me/EVOtapBot
-2. Click en "Jugar EVO Tap" (o menu button)
+1. Abrir https://t.me/evoliviabot
+2. Click en el botón de menú "🎮 Jugar EVO Tap"
 3. Verificar que abre la mini app
 4. Probar flujo completo:
-   - Selección de equipo
+   - Selección de equipo (Colla o Camba)
    - Hacer taps
    - Verificar que los puntos se sincronizan
 
 ## ✅ Checklist de Verificación
 
 - [x] Frontend desplegado en Vercel
-- [x] Build exitoso sin errores
+- [x] Build exitoso sin errores (30s)
 - [x] Variables de entorno configuradas
-- [ ] Bot URL actualizada en @BotFather
-- [ ] Mini app se abre desde Telegram
-- [ ] initDataRaw se obtiene correctamente
-- [ ] Taps se sincronizan al backend
-- [ ] Scores de equipos se actualizan
-- [ ] Todas las páginas cargan correctamente
+- [x] Bot URL actualizada (@evoliviabot)
+- [x] Menu button configurado (🎮 Jugar EVO Tap)
+- [x] 5 comandos configurados (/start, /play, /stats, /leaderboard, /help)
+- [x] Mini app URL verificada (HTTP 200)
+- [x] Proyectos duplicados eliminados
+- [x] Un solo proyecto limpio: ton-miniapp-bolivia
+- [ ] Probar en Telegram (selección de equipo + taps)
+- [ ] Verificar sincronización con backend
 
 ## 🐛 Troubleshooting
 
@@ -127,14 +134,22 @@ Debe retornar JSON con datos de equipos
 
 ## 🔗 Links Útiles
 
-- Vercel Dashboard: https://vercel.com/nunalabs-projects/ton-miniapp-bolivia
-- BotFather: https://t.me/BotFather
-- Cloudflare Workers: https://dash.cloudflare.com/
-- Bot: https://t.me/EVOtapBot
+- **Bot**: https://t.me/evoliviabot
+- **Vercel Dashboard**: https://vercel.com/nunalabs-projects/ton-miniapp-bolivia
+- **API Backend**: https://evotap-api.andeanlabs-58f.workers.dev
+- **BotFather**: https://t.me/BotFather
 
 ---
 
-**Deployment realizado**: 5 Abril 2026, 19:50 UTC
-**Versión**: e691e0c
-**Build time**: 17.24s
-**Status**: ✅ Success
+## 🔐 Token Seguro
+
+Token guardado en: `.env.bot` (gitignored)
+- ✅ NO commiteado a git
+- ✅ Línea 65 de `.gitignore`: `.env.bot`
+- ✅ Script de verificación: `scripts/test-bot.sh`
+
+---
+
+**Deployment realizado**: 5 Abril 2026, 18:20 UTC
+**Build time**: 30s
+**Status**: ✅ SUCCESS - APP LIVE

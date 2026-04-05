@@ -105,9 +105,10 @@ curl -X POST "https://api.telegram.org/bot${BOT_TOKEN}/setChatMenuButton" \\
 ## 🔗 LINKS IMPORTANTES
 
 - **Bot**: https://t.me/evoliviabot
-- **Mini App**: https://ton-miniapp-bolivia.vercel.app
+- **Mini App**: https://ton-miniapp-bolivia.vercel.app ✅ LIVE
 - **API Backend**: https://evotap-api.andeanlabs-58f.workers.dev
 - **Vercel Dashboard**: https://vercel.com/nunalabs-projects/ton-miniapp-bolivia
+- **Latest Deployment**: https://ton-miniapp-bolivia-jz70wao8i-nunalabs-projects.vercel.app
 
 ---
 

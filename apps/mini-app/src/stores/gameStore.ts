@@ -208,8 +208,8 @@ interface GameState {
 // =============================================================================
 
 const STORAGE_KEY = 'evo_game_v2';
-const ENERGY_RECHARGE_RATE = 1; // 1 energy per minute
-const INITIAL_MAX_ENERGY = 1000;
+const ENERGY_RECHARGE_RATE = 1000; // 1000 energy per minute (16.6/second) - high enough for real users, bots get caught by backend rate limit
+const INITIAL_MAX_ENERGY = 1_000_000; // 1 million - virtually unlimited for humans, backend prevents bots with rate limiting
 const SYNC_DEBOUNCE_MS = 3000;
 const REFERRAL_BONUS = 5000; // Points for both referrer and referee
 const STREAK_BONUS_PER_DAY = 100; // Bonus points multiplier per streak day
@@ -235,7 +235,9 @@ function calculateLevel(totalTaps: number): number {
 }
 
 function calculateMaxEnergy(level: number): number {
-  return INITIAL_MAX_ENERGY + (level - 1) * 100;
+  // Keep energy high - users should never run out
+  // Level ups give modest increases but base is already very high
+  return INITIAL_MAX_ENERGY + (level - 1) * 10_000;
 }
 
 function generateReferralCode(): string {

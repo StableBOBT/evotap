@@ -26,26 +26,46 @@ export function TeamBattleSelector({ onSelect, collaScore, cambaScore }: TeamBat
     };
   }, []);
 
-  const totalScore = collaScore + cambaScore || 1;
-  const collaPercent = Math.round((collaScore / totalScore) * 100);
-  const cambaPercent = 100 - collaPercent;
+  const totalScore = collaScore + cambaScore;
+
+  // When both teams have 0 points, show 50/50
+  let collaPercent: number;
+  let cambaPercent: number;
+
+  if (totalScore === 0) {
+    collaPercent = 50;
+    cambaPercent = 50;
+  } else {
+    collaPercent = Math.round((collaScore / totalScore) * 100);
+    cambaPercent = 100 - collaPercent;
+  }
 
   const handleTeamClick = (team: 'colla' | 'camba') => {
+    console.log('[TeamBattleSelector] Team clicked:', team);
     haptics.tap();
     setSelectedTeam(team);
+    console.log('[TeamBattleSelector] Selected team updated to:', team);
   };
 
   const handleConfirm = () => {
-    if (!selectedTeam || isConfirming) return;
+    if (!selectedTeam || isConfirming) {
+      console.warn('[TeamBattleSelector] Cannot confirm:', { selectedTeam, isConfirming });
+      return;
+    }
 
-    console.log('[TeamBattleSelector] Confirming team:', selectedTeam);
+    console.log('[TeamBattleSelector] ✅ Confirming team:', selectedTeam);
     haptics.success();
     setIsConfirming(true);
 
     // Call onSelect immediately - no delay needed
-    console.log('[TeamBattleSelector] Calling onSelect with:', selectedTeam);
-    onSelect(selectedTeam);
-    console.log('[TeamBattleSelector] onSelect called');
+    try {
+      console.log('[TeamBattleSelector] 📞 Calling onSelect with:', selectedTeam);
+      onSelect(selectedTeam);
+      console.log('[TeamBattleSelector] ✅ onSelect called successfully');
+    } catch (error) {
+      console.error('[TeamBattleSelector] ❌ Error calling onSelect:', error);
+      setIsConfirming(false);
+    }
   };
 
   return (

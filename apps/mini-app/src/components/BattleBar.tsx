@@ -76,7 +76,17 @@ export const BattleBar = memo(function BattleBar({
 
   // Memoized calculations
   const { collaPercent, cambaPercent, winner } = useMemo(() => {
-    const total = displayCollaScore + displayCambaScore || 1;
+    const total = displayCollaScore + displayCambaScore;
+
+    // When both teams have 0 points, show 50/50
+    if (total === 0) {
+      return {
+        collaPercent: 50,
+        cambaPercent: 50,
+        winner: null,
+      };
+    }
+
     const collaPct = Math.round((displayCollaScore / total) * 100);
     return {
       collaPercent: collaPct,
