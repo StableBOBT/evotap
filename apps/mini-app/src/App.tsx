@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
-import { Header, Navigation, SplashScreen, AchievementNotification } from './components';
+import { Header, Navigation, SplashScreen, AchievementNotification, ErrorBoundary } from './components';
 import { GamePage } from './pages'; // Keep main page eager
 import { AchievementsList } from './components/AchievementsList';
 import { useUIStore } from './stores/uiStore';
@@ -29,29 +29,43 @@ function PageLoader() {
 }
 
 export function App() {
+  log('=== APP COMPONENT RENDERING ===');
+
   const { currentPage } = useUIStore();
   const { initialize, isInitialized } = useGameStore();
 
   const [showSplash, setShowSplash] = useState(true);
 
+  log('App render state:', { currentPage, isInitialized, showSplash });
+
   // Initialize immediately on mount with timeout fallback
   useEffect(() => {
-    log('Mounting, isInitialized:', isInitialized);
+    log('[App] useEffect - Mounting, isInitialized:', isInitialized);
 
     // Force initialize
-    initialize();
+    log('[App] Calling initialize...');
+    initialize().then(() => {
+      log('[App] initialize() promise resolved');
+    }).catch((err) => {
+      log('[App] initialize() promise rejected:', err);
+    });
 
     // Fallback: If not initialized after 3 seconds, force it
     const timeout = setTimeout(() => {
-      if (!isInitialized) {
+      log('[App] Timeout check - isInitialized:', useGameStore.getState().isInitialized);
+      if (!useGameStore.getState().isInitialized) {
         console.error('[App] Initialize timeout - forcing initialization');
         // Force initialize by setting state directly
         useGameStore.setState({ isInitialized: true });
+        log('[App] Forced isInitialized = true');
       }
     }, 3000);
 
-    return () => clearTimeout(timeout);
-  }, [initialize, isInitialized]);
+    return () => {
+      log('[App] useEffect cleanup');
+      clearTimeout(timeout);
+    };
+  }, [initialize]);
 
   // Log state changes
   useEffect(() => {
@@ -129,11 +143,15 @@ export function App() {
 
       {/* Main app content */}
       <div className="flex flex-col h-screen bg-tg-bg overflow-hidden">
-        <Header />
+        <ErrorBoundary fallback={<div className="h-16" />}>
+          <Header />
+        </ErrorBoundary>
         <main className="flex-1 flex flex-col overflow-y-auto pb-20">
           {renderPage()}
         </main>
-        <Navigation />
+        <ErrorBoundary fallback={<div className="h-20" />}>
+          <Navigation />
+        </ErrorBoundary>
       </div>
     </>
   );

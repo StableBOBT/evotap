@@ -7,6 +7,7 @@ import {
   backButton,
   hapticFeedback,
   viewport,
+  retrieveLaunchParams,
 } from '@telegram-apps/sdk-react';
 
 // Debug logging (temporarily enabled for diagnosis)
@@ -51,14 +52,28 @@ interface UseTMAReturn {
   expand: () => void;
 }
 
+// Safe wrapper that catches launch params errors
+function useSafeLaunchParams() {
+  try {
+    return useLaunchParams();
+  } catch (error) {
+    console.warn('[useTMA] Not in Telegram, using mock params:', error);
+    // Return mock params for development outside Telegram
+    return {
+      initDataRaw: null,
+      initData: null,
+    } as any;
+  }
+}
+
 export function useTMA(): UseTMAReturn {
   const [isReady, setIsReady] = useState(false);
   const [isTelegramApp, setIsTelegramApp] = useState(false);
   const [mainButtonCallback, setMainButtonCallback] = useState<(() => void) | null>(null);
   const [backButtonCallback, setBackButtonCallback] = useState<(() => void) | null>(null);
 
-  // Get launch params
-  const launchParams = useLaunchParams();
+  // Get launch params safely
+  const launchParams = useSafeLaunchParams();
 
   // Use signals for reactive state
   const initDataState = useSignal(initData.state);
