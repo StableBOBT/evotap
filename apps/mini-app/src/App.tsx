@@ -34,10 +34,23 @@ export function App() {
 
   const [showSplash, setShowSplash] = useState(true);
 
-  // Initialize immediately on mount
+  // Initialize immediately on mount with timeout fallback
   useEffect(() => {
     log('Mounting, isInitialized:', isInitialized);
+
+    // Force initialize
     initialize();
+
+    // Fallback: If not initialized after 3 seconds, force it
+    const timeout = setTimeout(() => {
+      if (!isInitialized) {
+        console.error('[App] Initialize timeout - forcing initialization');
+        // Force initialize by setting state directly
+        useGameStore.setState({ isInitialized: true });
+      }
+    }, 3000);
+
+    return () => clearTimeout(timeout);
   }, [initialize, isInitialized]);
 
   // Log state changes

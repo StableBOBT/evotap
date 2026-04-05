@@ -109,6 +109,8 @@ export function GamePage() {
       <div className="flex flex-col items-center justify-center flex-1 px-4 gap-4">
         <div className="w-12 h-12 border-4 border-tg-button border-t-transparent rounded-full animate-spin" />
         <p className="text-tg-hint text-sm">Loading your progress...</p>
+        <p className="text-xs text-white/30 mt-2">Debug: isInitialized = {String(isInitialized)}</p>
+        <p className="text-xs text-white/30">Check console for logs (F12)</p>
       </div>
     );
   }

@@ -321,41 +321,56 @@ export const useGameStore = create<GameState>()((set, get) => ({
   pendingTaps: 0,
   isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true,
 
-  // Initialize - fast, non-blocking
+  // Initialize - completely synchronous, no blocking
   initialize: async () => {
-    if (get().isInitialized) return;
+    console.log('[GameStore] Initialize called, current state:', { isInitialized: get().isInitialized });
 
-    // Mark initialized FIRST to unblock UI immediately
+    if (get().isInitialized) {
+      console.log('[GameStore] Already initialized, skipping');
+      return;
+    }
+
+    // Mark initialized IMMEDIATELY to unblock UI
+    console.log('[GameStore] Setting isInitialized = true');
     set({ isInitialized: true });
+    console.log('[GameStore] isInitialized set to true');
 
-    // Check cloud availability
+    // Check cloud availability (non-blocking)
     let isAvailable = false;
     try {
       isAvailable = tgCloudStorage?.getItem?.isAvailable?.() ?? false;
-    } catch {
-      // Not in Telegram
+      console.log('[GameStore] Cloud storage available:', isAvailable);
+    } catch (err) {
+      console.log('[GameStore] Cloud storage check failed:', err);
     }
     set({ isCloudAvailable: isAvailable });
 
     if (!isAvailable) {
+      console.log('[GameStore] No cloud storage, using defaults');
       get().checkAndUpdateStreak();
       return;
     }
 
-    // Load from cloud in background with 1s timeout
+    // Load from cloud in background (don't block UI)
+    console.log('[GameStore] Loading from cloud storage...');
     try {
       const stored = await Promise.race([
         tgCloudStorage.getItem(STORAGE_KEY),
-        new Promise<null>((r) => setTimeout(() => r(null), 1000)),
+        new Promise<null>((r) => setTimeout(() => {
+          console.log('[GameStore] Cloud storage timeout');
+          r(null);
+        }, 1000)),
       ]);
 
       if (stored) {
+        console.log('[GameStore] Cloud data loaded, parsing...');
         const data = parseStoredData(stored);
         if (data) {
           const totalTaps = typeof data.totalTaps === 'number' ? data.totalTaps : 0;
           const level = calculateLevel(totalTaps);
           const maxEnergy = calculateMaxEnergy(level);
 
+          console.log('[GameStore] Restoring state:', { totalTaps, level, team: data.team });
           set({
             points: typeof data.points === 'number' ? data.points : 0,
             energy: Math.min(typeof data.energy === 'number' ? data.energy : INITIAL_MAX_ENERGY, maxEnergy),
@@ -380,12 +395,15 @@ export const useGameStore = create<GameState>()((set, get) => ({
             walletAddress: typeof data.walletAddress === 'string' ? data.walletAddress : null,
             lastSyncedAt: typeof data.lastSyncedAt === 'number' ? data.lastSyncedAt : null,
           });
+          console.log('[GameStore] State restored successfully');
         }
+      } else {
+        console.log('[GameStore] No stored data found');
       }
       get().checkAndUpdateStreak();
       get().checkAchievements();
-    } catch {
-      // Ignore errors - we already have defaults
+    } catch (err) {
+      console.error('[GameStore] Error loading from cloud:', err);
     }
   },
 
