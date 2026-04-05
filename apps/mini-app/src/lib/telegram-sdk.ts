@@ -17,9 +17,6 @@ import {
   retrieveLaunchParams,
 } from '@telegram-apps/sdk-react';
 
-// Debug mode for development
-const DEBUG = import.meta.env.DEV;
-
 interface InitResult {
   success: boolean;
   initDataRaw: string | null;
@@ -97,7 +94,7 @@ export async function initializeTelegramSDK(): Promise<InitResult> {
       // Method 1: Get raw initData from launch params
       const launchParams = retrieveLaunchParams();
       if (launchParams?.initDataRaw) {
-        initDataRaw = launchParams.initDataRaw;
+        initDataRaw = String(launchParams.initDataRaw);
         console.log('[TelegramSDK] initDataRaw from launchParams:', initDataRaw.slice(0, 50) + '...');
       } else {
         console.warn('[TelegramSDK] launchParams.initDataRaw is null');
