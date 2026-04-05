@@ -7,7 +7,7 @@ compatibility_date = "2024-12-01"
 # =============================================
 [vars]
 ENVIRONMENT = "production"
-MINI_APP_URL = "https://ton-miniapp-bolivia.vercel.app"
+MINI_APP_URL = "https://ton-miniapp-bolivia-one.vercel.app"
 API_URL = "https://evotap-api.andeanlabs-58f.workers.dev"
 
 # For local dev, use polling mode instead of webhooks
