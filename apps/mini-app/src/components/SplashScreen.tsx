@@ -11,19 +11,32 @@ export function SplashScreen({ isLoading, progress, onComplete }: SplashScreenPr
   const [isFadingOut, setIsFadingOut] = useState(false);
 
   useEffect(() => {
-    if (!isLoading && progress >= 100) {
-      // Start fade out animation
-      setIsFadingOut(true);
+    // Auto-complete after max 1.5s even if still loading
+    const maxTimeout = setTimeout(() => {
+      if (isVisible && !isFadingOut) {
+        setIsFadingOut(true);
+        setTimeout(() => {
+          setIsVisible(false);
+          onComplete();
+        }, 300);
+      }
+    }, 1500);
 
-      // Remove from DOM after animation
+    // Complete immediately if loaded
+    if (!isLoading) {
+      setIsFadingOut(true);
       const timer = setTimeout(() => {
         setIsVisible(false);
         onComplete();
-      }, 600);
-
-      return () => clearTimeout(timer);
+      }, 300);
+      return () => {
+        clearTimeout(timer);
+        clearTimeout(maxTimeout);
+      };
     }
-  }, [isLoading, progress, onComplete]);
+
+    return () => clearTimeout(maxTimeout);
+  }, [isLoading, progress, onComplete, isVisible, isFadingOut]);
 
   if (!isVisible) return null;
 
@@ -32,7 +45,7 @@ export function SplashScreen({ isLoading, progress, onComplete }: SplashScreenPr
       className={`
         fixed inset-0 z-50 flex flex-col items-center justify-center
         bg-gradient-to-br from-purple-900 via-indigo-900 to-blue-900
-        transition-opacity duration-500 ease-out
+        transition-opacity duration-300 ease-out
         ${isFadingOut ? 'opacity-0' : 'opacity-100'}
       `}
     >

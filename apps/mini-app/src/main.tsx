@@ -2,39 +2,24 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { TonConnectUIProvider } from '@tonconnect/ui-react';
+import { init, miniApp } from '@telegram-apps/sdk-react';
 import { App } from './App';
 import './styles/index.css';
 
-// Initialize Eruda for mobile debugging (development only)
-if (import.meta.env.DEV) {
-  import('eruda').then((eruda) => {
-    eruda.default.init();
-    console.log('[Debug] Eruda initialized for mobile debugging');
-  }).catch((e) => {
-    console.warn('[Debug] Eruda failed to load:', e);
-  });
-}
-
-// Initialize Telegram Mini Apps SDK safely
-function initTelegramSDK() {
-  try {
-    // Dynamic import to avoid blocking if SDK fails
-    const { init, miniApp } = require('@telegram-apps/sdk-react');
-    init();
-
-    // Signal ready to remove Telegram's loading screen
-    if (miniApp?.ready?.isAvailable?.()) {
-      miniApp.ready();
-    }
-    return true;
-  } catch (e) {
-    console.warn('[TMA] SDK init failed:', e);
-    return false;
+// Initialize Telegram SDK immediately (non-blocking)
+try {
+  init();
+  if (miniApp?.ready?.isAvailable?.()) {
+    miniApp.ready();
   }
+} catch (e) {
+  console.warn('[TMA] SDK init:', e);
 }
 
-// Init SDK immediately
-initTelegramSDK();
+// Eruda only in dev (lazy load, non-blocking)
+if (import.meta.env.DEV) {
+  import('eruda').then((e) => e.default.init()).catch(() => {});
+}
 
 // TanStack Query client with conservative defaults
 const queryClient = new QueryClient({

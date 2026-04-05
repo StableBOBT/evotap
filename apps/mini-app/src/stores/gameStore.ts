@@ -1,18 +1,7 @@
 import { create } from 'zustand';
 
-// Safe cloudStorage access - might not be available
-let cloudStorage: {
-  getItem: { isAvailable: () => boolean } & ((key: string) => Promise<string | undefined>);
-  setItem: (key: string, value: string) => Promise<void>;
-  deleteItem: (key: string) => Promise<void>;
-} | null = null;
-
-try {
-  const sdk = require('@telegram-apps/sdk-react');
-  cloudStorage = sdk.cloudStorage;
-} catch {
-  console.warn('[GameStore] cloudStorage not available');
-}
+// Safe cloudStorage access
+import { cloudStorage as tgCloudStorage } from '@telegram-apps/sdk-react';
 
 // =============================================================================
 // CONSTANTS & TYPES
@@ -332,46 +321,33 @@ export const useGameStore = create<GameState>()((set, get) => ({
   pendingTaps: 0,
   isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true,
 
-  // Initialize from CloudStorage with timeout
+  // Initialize - fast, non-blocking
   initialize: async () => {
-    // Prevent duplicate initialization
-    const state = get();
-    if (state.isInitialized) {
-      console.log('[GameStore] Already initialized, skipping');
-      return;
-    }
+    if (get().isInitialized) return;
 
-    // Helper: wrap promise with timeout
-    const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T | null> => {
-      return Promise.race([
-        promise,
-        new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
-      ]);
-    };
+    // Mark initialized FIRST to unblock UI immediately
+    set({ isInitialized: true });
 
-    // Check if cloudStorage is available
+    // Check cloud availability
     let isAvailable = false;
     try {
-      if (cloudStorage?.getItem?.isAvailable) {
-        isAvailable = cloudStorage.getItem.isAvailable();
-      }
+      isAvailable = tgCloudStorage?.getItem?.isAvailable?.() ?? false;
     } catch {
-      console.warn('[GameStore] CloudStorage availability check failed');
+      // Not in Telegram
     }
     set({ isCloudAvailable: isAvailable });
 
     if (!isAvailable) {
-      console.log('[GameStore] CloudStorage not available, using local state');
-      set({ isInitialized: true });
       get().checkAndUpdateStreak();
       return;
     }
 
+    // Load from cloud in background with 1s timeout
     try {
-      // Timeout after 3 seconds to prevent hanging
-      const stored = cloudStorage
-        ? await withTimeout(cloudStorage.getItem(STORAGE_KEY), 3000)
-        : null;
+      const stored = await Promise.race([
+        tgCloudStorage.getItem(STORAGE_KEY),
+        new Promise<null>((r) => setTimeout(() => r(null), 1000)),
+      ]);
 
       if (stored) {
         const data = parseStoredData(stored);
@@ -387,61 +363,29 @@ export const useGameStore = create<GameState>()((set, get) => ({
             level,
             totalTaps,
             lastEnergyUpdate: typeof data.lastEnergyUpdate === 'number' ? data.lastEnergyUpdate : Date.now(),
-
-            // Team
             department: (data.department as DepartmentId) || null,
             team: (data.team as TeamType) || null,
             teamJoinedAt: typeof data.teamJoinedAt === 'number' ? data.teamJoinedAt : null,
             detectedRegion: typeof data.detectedRegion === 'string' ? data.detectedRegion : null,
-
-            // Streak
             currentStreak: typeof data.currentStreak === 'number' ? data.currentStreak : 0,
             longestStreak: typeof data.longestStreak === 'number' ? data.longestStreak : 0,
             lastPlayDate: typeof data.lastPlayDate === 'string' ? data.lastPlayDate : null,
             streakBonusCollected: data.streakBonusCollected === true,
-
-            // Referral
             referralCode: typeof data.referralCode === 'string' ? data.referralCode : generateReferralCode(),
             referredBy: typeof data.referredBy === 'string' ? data.referredBy : null,
             referralCount: typeof data.referralCount === 'number' ? data.referralCount : 0,
             referralEarnings: typeof data.referralEarnings === 'number' ? data.referralEarnings : 0,
-
-            // Achievements
             unlockedAchievements: Array.isArray(data.unlockedAchievements) ? data.unlockedAchievements as AchievementId[] : [],
-
-            // Wallet
             walletConnected: data.walletConnected === true,
             walletAddress: typeof data.walletAddress === 'string' ? data.walletAddress : null,
-
             lastSyncedAt: typeof data.lastSyncedAt === 'number' ? data.lastSyncedAt : null,
-            isInitialized: true,
-          });
-
-          console.log('[GameStore] Loaded from CloudStorage');
-        } else {
-          // Corrupted data - use defaults
-          console.warn('[GameStore] Corrupted stored data, using defaults');
-          set({ isInitialized: true, lastSyncedAt: Date.now() });
-          get().syncToCloud().catch((err) => {
-            console.error('[GameStore] Background sync failed:', err);
           });
         }
-      } else {
-        // First time or timeout - use defaults
-        set({ isInitialized: true, lastSyncedAt: Date.now() });
-        // Don't await sync on first load - do it in background
-        get().syncToCloud().catch((err) => {
-          console.error('[GameStore] Initial sync failed:', err);
-        });
-        console.log('[GameStore] Initialized new user');
       }
-
-      // Check streak after loading
       get().checkAndUpdateStreak();
       get().checkAchievements();
-    } catch (error) {
-      console.error('[GameStore] Init error:', error);
-      set({ isInitialized: true });
+    } catch {
+      // Ignore errors - we already have defaults
     }
   },
 
@@ -759,7 +703,7 @@ export const useGameStore = create<GameState>()((set, get) => ({
   syncToCloud: async () => {
     const state = get();
 
-    if (!state.isCloudAvailable || !cloudStorage) {
+    if (!state.isCloudAvailable || !tgCloudStorage) {
       return false;
     }
 
@@ -800,7 +744,7 @@ export const useGameStore = create<GameState>()((set, get) => ({
         lastSyncedAt: Date.now(),
       };
 
-      await cloudStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      await tgCloudStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 
       set({
         isSyncing: false,
@@ -845,8 +789,8 @@ export const useGameStore = create<GameState>()((set, get) => ({
     });
 
     const state = get();
-    if (state.isCloudAvailable && cloudStorage) {
-      cloudStorage.deleteItem(STORAGE_KEY).catch(console.error);
+    if (state.isCloudAvailable && tgCloudStorage) {
+      tgCloudStorage.deleteItem(STORAGE_KEY).catch(console.error);
     }
   },
 

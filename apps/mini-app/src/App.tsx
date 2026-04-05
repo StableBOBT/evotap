@@ -22,68 +22,15 @@ function PageLoader() {
   );
 }
 
-// Fast loading - max 2 seconds total
-const MAX_LOAD_TIME = 2000;
-
 export function App() {
   const { currentPage } = useUIStore();
-  const { initialize } = useGameStore();
+  const { initialize, isInitialized } = useGameStore();
 
   const [showSplash, setShowSplash] = useState(true);
-  const [loadProgress, setLoadProgress] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
 
-  // Fast initialization with hard timeout
+  // Initialize immediately on mount
   useEffect(() => {
-    let mounted = true;
-    const startTime = Date.now();
-
-    const runInit = async () => {
-      // Start progress animation immediately
-      const progressInterval = setInterval(() => {
-        if (!mounted) {
-          clearInterval(progressInterval);
-          return;
-        }
-        const elapsed = Date.now() - startTime;
-        const progress = Math.min((elapsed / MAX_LOAD_TIME) * 100, 95);
-        setLoadProgress(progress);
-      }, 50);
-
-      // Initialize game state (has its own timeout)
-      try {
-        await initialize();
-      } catch (e) {
-        console.warn('[App] Init warning:', e);
-      }
-
-      // Clear progress interval and complete
-      clearInterval(progressInterval);
-
-      if (mounted) {
-        setLoadProgress(100);
-        // Small delay for smooth animation
-        setTimeout(() => {
-          if (mounted) setIsLoading(false);
-        }, 200);
-      }
-    };
-
-    // Force complete after MAX_LOAD_TIME regardless
-    const forceComplete = setTimeout(() => {
-      if (mounted && isLoading) {
-        console.warn('[App] Force completing load');
-        setLoadProgress(100);
-        setIsLoading(false);
-      }
-    }, MAX_LOAD_TIME);
-
-    runInit();
-
-    return () => {
-      mounted = false;
-      clearTimeout(forceComplete);
-    };
+    initialize();
   }, [initialize]);
 
   const handleSplashComplete = useCallback(() => {
@@ -146,8 +93,8 @@ export function App() {
       {/* Splash screen overlay */}
       {showSplash && (
         <SplashScreen
-          isLoading={isLoading}
-          progress={loadProgress}
+          isLoading={!isInitialized}
+          progress={isInitialized ? 100 : 50}
           onComplete={handleSplashComplete}
         />
       )}
