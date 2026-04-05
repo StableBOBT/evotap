@@ -14,6 +14,12 @@ import { useHaptics } from '../hooks/useHaptics';
 import { useTeamBattle, useRegionDetection } from '../hooks/useTeamBattle';
 import { useGameSync } from '../hooks/useGameSync';
 
+// Debug logging (temporarily enabled for diagnosis)
+const DEBUG = true;
+const log = (msg: string, data?: unknown) => {
+  if (DEBUG) console.log(`[Game] ${msg}`, data ?? '');
+};
+
 export function GamePage() {
   // Granular selectors to prevent unnecessary re-renders
   const isSyncing = useGameStore((s) => s.isSyncing);
@@ -50,8 +56,10 @@ export function GamePage() {
   // Note: Initialize is called in App.tsx, not here to avoid race conditions
 
   // Auto-set department from detected region (only valid Bolivian departments)
+  // NOTE: This is disabled because team selection is now manual via TeamBattleSelector
+  // We keep the detection for future use
   useEffect(() => {
-    if (detectedRegion && !department) {
+    if (detectedRegion && !department && !team) {
       const validDepartments = [
         'LA_PAZ', 'ORURO', 'POTOSI', 'COCHABAMBA', 'CHUQUISACA',
         'TARIJA', 'SANTA_CRUZ', 'BENI', 'PANDO'
@@ -61,7 +69,7 @@ export function GamePage() {
         selectDepartment(detectedRegion as Parameters<typeof selectDepartment>[0]);
       }
     }
-  }, [detectedRegion, department, selectDepartment]);
+  }, [detectedRegion, department, team, selectDepartment]);
 
   // Auto-recharge energy
   useEffect(() => {
@@ -83,13 +91,20 @@ export function GamePage() {
 
   // Handle team selection (memoized)
   const handleTeamSelect = useCallback((selectedTeam: 'colla' | 'camba') => {
+    log('Team selected:', selectedTeam);
     selectTeam(selectedTeam);
     haptics.success();
     // Sync is handled automatically by useGameSync watching team changes
   }, [selectTeam, haptics]);
 
-  // Loading state
+  // Debug: Log render state
+  useEffect(() => {
+    log('Render state:', { isInitialized, team, isSyncing, isApiSyncing });
+  }, [isInitialized, team, isSyncing, isApiSyncing]);
+
+  // Loading state - only show briefly on initial mount
   if (!isInitialized) {
+    log('Showing loading spinner - isInitialized:', isInitialized);
     return (
       <div className="flex flex-col items-center justify-center flex-1 px-4 gap-4">
         <div className="w-12 h-12 border-4 border-tg-button border-t-transparent rounded-full animate-spin" />
@@ -99,7 +114,9 @@ export function GamePage() {
   }
 
   // Show team selection if user hasn't chosen
+  // IMPORTANT: Don't block on sync state, let user proceed immediately
   if (!team) {
+    log('Showing team selector - team:', team);
     return (
       <TeamBattleSelector
         onSelect={handleTeamSelect}
@@ -108,6 +125,9 @@ export function GamePage() {
       />
     );
   }
+
+  // Main game - user has selected team
+  log('Showing main game - team:', team);
 
   // Low energy warning phrase (memoized)
   const isLowEnergy = useMemo(() => energy < maxEnergy * 0.1, [energy, maxEnergy]);

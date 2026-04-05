@@ -38,13 +38,14 @@ export function TeamBattleSelector({ onSelect, collaScore, cambaScore }: TeamBat
   const handleConfirm = () => {
     if (!selectedTeam || isConfirming) return;
 
+    console.log('[TeamBattleSelector] Confirming team:', selectedTeam);
     haptics.success();
     setIsConfirming(true);
 
-    // Animate then select - with cleanup ref
-    confirmTimeoutRef.current = setTimeout(() => {
-      onSelect(selectedTeam);
-    }, 400);
+    // Call onSelect immediately - no delay needed
+    console.log('[TeamBattleSelector] Calling onSelect with:', selectedTeam);
+    onSelect(selectedTeam);
+    console.log('[TeamBattleSelector] onSelect called');
   };
 
   return (

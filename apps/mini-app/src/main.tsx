@@ -16,10 +16,8 @@ try {
   console.warn('[TMA] SDK init:', e);
 }
 
-// Eruda only in dev (lazy load, non-blocking)
-if (import.meta.env.DEV) {
-  import('eruda').then((e) => e.default.init()).catch(() => {});
-}
+// Eruda for debugging (temporarily enabled in prod for diagnosis)
+import('eruda').then((e) => e.default.init()).catch(() => {});
 
 // TanStack Query client with conservative defaults
 const queryClient = new QueryClient({

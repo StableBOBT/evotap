@@ -5,6 +5,12 @@ import { AchievementsList } from './components/AchievementsList';
 import { useUIStore } from './stores/uiStore';
 import { useGameStore } from './stores/gameStore';
 
+// Debug logging (temporarily enabled for diagnosis)
+const DEBUG = true;
+const log = (msg: string, data?: unknown) => {
+  if (DEBUG) console.log(`[App] ${msg}`, data ?? '');
+};
+
 // Lazy load non-critical pages for better initial load performance
 const LeaderboardPage = lazy(() => import('./pages/Leaderboard').then(m => ({ default: m.LeaderboardPage })));
 const ProfilePage = lazy(() => import('./pages/Profile').then(m => ({ default: m.ProfilePage })));
@@ -30,8 +36,14 @@ export function App() {
 
   // Initialize immediately on mount
   useEffect(() => {
+    log('Mounting, isInitialized:', isInitialized);
     initialize();
-  }, [initialize]);
+  }, [initialize, isInitialized]);
+
+  // Log state changes
+  useEffect(() => {
+    log('State changed:', { isInitialized, showSplash, currentPage });
+  }, [isInitialized, showSplash, currentPage]);
 
   const handleSplashComplete = useCallback(() => {
     setShowSplash(false);

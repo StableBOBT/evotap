@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   useLaunchParams,
   useSignal,
@@ -8,6 +8,12 @@ import {
   hapticFeedback,
   viewport,
 } from '@telegram-apps/sdk-react';
+
+// Debug logging (temporarily enabled for diagnosis)
+const DEBUG = true;
+const log = (msg: string, data?: unknown) => {
+  if (DEBUG) console.log(`[useTMA] ${msg}`, data ?? '');
+};
 
 interface TMAUser {
   id: number;
@@ -64,11 +70,17 @@ export function useTMA(): UseTMAReturn {
     setIsTelegramApp(!!isTg);
     setIsReady(true);
 
+    log('Environment check:', {
+      isTelegram: !!isTg,
+      hasLaunchParams: !!launchParams,
+      hasInitDataRaw: !!launchParams?.initDataRaw,
+    });
+
     // Expand viewport if in Telegram
     if (isTg && viewport.expand.isAvailable()) {
       viewport.expand();
     }
-  }, []);
+  }, [launchParams]);
 
   // Subscribe to main button clicks
   useEffect(() => {
@@ -98,10 +110,12 @@ export function useTMA(): UseTMAReturn {
       }
     : null;
 
-  // Get raw init data string for API auth
-  const initDataRaw: string | null = launchParams?.initDataRaw
-    ? String(launchParams.initDataRaw)
-    : null;
+  // Get raw init data string for API auth - memoized for stability
+  const initDataRaw = useMemo(() => {
+    const raw = launchParams?.initDataRaw ? String(launchParams.initDataRaw) : null;
+    log('initDataRaw computed:', raw ? `${raw.slice(0, 50)}...` : 'null');
+    return raw;
+  }, [launchParams?.initDataRaw]);
 
   // Haptic feedback helpers
   const impactLight = useCallback(() => {

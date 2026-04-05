@@ -501,10 +501,13 @@ export const useGameStore = create<GameState>()((set, get) => ({
   selectTeam: (team: BattleTeam) => {
     const now = Date.now();
 
+    console.log('[GameStore] Selecting team:', team);
     set({
       team,
       teamJoinedAt: now,
     });
+
+    console.log('[GameStore] Team set successfully:', get().team);
 
     // Check team achievement
     get().checkAchievements();
@@ -699,11 +702,16 @@ export const useGameStore = create<GameState>()((set, get) => ({
     });
   },
 
-  // Sync to CloudStorage
+  // Sync to CloudStorage with timeout
   syncToCloud: async () => {
     const state = get();
 
     if (!state.isCloudAvailable || !tgCloudStorage) {
+      return false;
+    }
+
+    // Prevent concurrent syncs
+    if (state.isSyncing) {
       return false;
     }
 
@@ -715,46 +723,34 @@ export const useGameStore = create<GameState>()((set, get) => ({
         energy: state.energy,
         totalTaps: state.totalTaps,
         lastEnergyUpdate: state.lastEnergyUpdate,
-
-        // Team
         department: state.department,
         team: state.team,
         teamJoinedAt: state.teamJoinedAt,
         detectedRegion: state.detectedRegion,
-
-        // Streak
         currentStreak: state.currentStreak,
         longestStreak: state.longestStreak,
         lastPlayDate: state.lastPlayDate,
         streakBonusCollected: state.streakBonusCollected,
-
-        // Referral
         referralCode: state.referralCode,
         referredBy: state.referredBy,
         referralCount: state.referralCount,
         referralEarnings: state.referralEarnings,
-
-        // Achievements
         unlockedAchievements: state.unlockedAchievements,
-
-        // Wallet
         walletConnected: state.walletConnected,
         walletAddress: state.walletAddress,
-
         lastSyncedAt: Date.now(),
       };
 
-      await tgCloudStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      // 3 second timeout to prevent hanging
+      await Promise.race([
+        tgCloudStorage.setItem(STORAGE_KEY, JSON.stringify(data)),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('CloudStorage timeout')), 3000)),
+      ]);
 
-      set({
-        isSyncing: false,
-        lastSyncedAt: Date.now(),
-      });
-
-      console.log('[GameStore] Synced to CloudStorage');
+      set({ isSyncing: false, lastSyncedAt: Date.now() });
       return true;
     } catch (error) {
-      console.error('[GameStore] Sync error:', error);
+      console.warn('[GameStore] Sync error:', error);
       set({ isSyncing: false });
       return false;
     }
