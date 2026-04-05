@@ -46,9 +46,12 @@ export function useGameSync() {
 
   // Tap mutation - destructure mutate for stable reference
   const { mutate: tapMutate, isPending: isTapPending } = useMutation({
-    mutationFn: ({ taps, auth }: { taps: number; auth: string }) =>
-      api.tap(auth, taps),
+    mutationFn: ({ taps, auth }: { taps: number; auth: string }) => {
+      console.log('[useGameSync] Syncing taps:', { taps, hasAuth: !!auth });
+      return api.tap(auth, taps);
+    },
     onSuccess: (response) => {
+      console.log('[useGameSync] Tap sync success:', response);
       isTapSyncingRef.current = false;
       if (response.success && response.data) {
         syncFromServer({

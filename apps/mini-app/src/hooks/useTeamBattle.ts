@@ -32,6 +32,7 @@ export function useTeamBattle(): UseTeamBattleReturn {
     // Use cache if fresh enough
     const now = Date.now();
     if (now - cachedScores.lastUpdated < CACHE_TTL) {
+      console.log('[useTeamBattle] Using cached scores:', cachedScores);
       setScores(cachedScores);
       return;
     }
@@ -41,13 +42,16 @@ export function useTeamBattle(): UseTeamBattleReturn {
       setError(null);
 
       // Use new seasons/battle endpoint (no names, just totals)
-      const response = await fetch(`${API_URL}/api/v1/seasons/battle`);
+      const url = `${API_URL}/api/v1/seasons/battle`;
+      console.log('[useTeamBattle] Fetching scores from:', url);
+      const response = await fetch(url);
 
       if (!response.ok) {
         throw new Error('Failed to fetch team scores');
       }
 
       const data = await response.json();
+      console.log('[useTeamBattle] Response:', data);
 
       if (data.success && data.data) {
         const newScores: TeamScores = {
@@ -56,8 +60,11 @@ export function useTeamBattle(): UseTeamBattleReturn {
           lastUpdated: now,
         };
 
+        console.log('[useTeamBattle] Updated scores:', newScores);
         cachedScores = newScores;
         setScores(newScores);
+      } else {
+        console.warn('[useTeamBattle] Invalid response format:', data);
       }
     } catch (err) {
       console.error('[useTeamBattle] Error:', err);
