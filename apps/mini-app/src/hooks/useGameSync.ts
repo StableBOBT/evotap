@@ -182,8 +182,9 @@ export function useGameSync() {
       const pendingTaps = useGameStore.getState().pendingTaps;
       if (pendingTaps > 0) {
         console.log('[useGameSync] Found', pendingTaps, 'pending taps, syncing now');
-        // Use the syncTaps callback which already has all the logic
-        setTimeout(() => syncTaps(), 100);
+        // Fix: Store timer ref for cleanup
+        const timer = setTimeout(() => syncTaps(), 100);
+        return () => clearTimeout(timer);
       }
     }
   }, [initDataRaw, syncTaps]);

@@ -222,16 +222,19 @@ let tapsSinceAchievementCheck = 0; // Track taps for debounced achievement check
 // HELPER FUNCTIONS
 // =============================================================================
 
-function calculateLevel(totalTaps: number): number {
-  if (totalTaps < 1000) return 1;
-  if (totalTaps < 5000) return 2;
-  if (totalTaps < 15000) return 3;
-  if (totalTaps < 50000) return 4;
-  if (totalTaps < 100000) return 5;
-  if (totalTaps < 250000) return 6;
-  if (totalTaps < 500000) return 7;
-  if (totalTaps < 1000000) return 8;
-  return 9;
+// Calculate level from points (matches backend implementation)
+function calculateLevel(points: number): number {
+  // Thresholds match backend GAME_CONFIG.LEVEL_THRESHOLDS
+  if (points < 5000) return 1;
+  if (points < 25000) return 2;
+  if (points < 100000) return 3;
+  if (points < 500000) return 4;
+  if (points < 1000000) return 5;
+  if (points < 5000000) return 6;
+  if (points < 10000000) return 7;
+  if (points < 50000000) return 8;
+  if (points < 100000000) return 9;
+  return 10; // Max level
 }
 
 function calculateMaxEnergy(level: number): number {
@@ -418,7 +421,8 @@ export const useGameStore = create<GameState>()((set, get) => ({
     }
 
     const newTotalTaps = state.totalTaps + 1;
-    const newLevel = calculateLevel(newTotalTaps);
+    const newPoints = state.points + 1;
+    const newLevel = calculateLevel(newPoints); // Fix: Use points instead of totalTaps to match backend
     const newMaxEnergy = calculateMaxEnergy(newLevel);
     const today = getTodayDate();
 
@@ -443,7 +447,7 @@ export const useGameStore = create<GameState>()((set, get) => ({
     }
 
     set({
-      points: state.points + 1,
+      points: newPoints,
       energy: state.energy - 1,
       totalTaps: newTotalTaps,
       level: newLevel,

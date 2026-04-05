@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://evotap-api.andeanlabs-58f.workers.dev';
 
@@ -15,8 +15,6 @@ interface UseTeamBattleReturn {
   refresh: () => Promise<void>;
 }
 
-// Cache for team scores
-let cachedScores: TeamScores = { colla: 0, camba: 0, lastUpdated: 0 };
 const CACHE_TTL = 5000; // 5 seconds
 
 /**
@@ -24,16 +22,18 @@ const CACHE_TTL = 5000; // 5 seconds
  * Refreshes automatically every 5 seconds
  */
 export function useTeamBattle(): UseTeamBattleReturn {
-  const [scores, setScores] = useState<TeamScores>(cachedScores);
+  // Fix: Use ref instead of module-level variable to avoid shared state between hook instances
+  const cachedScoresRef = useRef<TeamScores>({ colla: 0, camba: 0, lastUpdated: 0 });
+  const [scores, setScores] = useState<TeamScores>(cachedScoresRef.current);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchScores = useCallback(async () => {
     // Use cache if fresh enough
     const now = Date.now();
-    if (now - cachedScores.lastUpdated < CACHE_TTL) {
-      console.log('[useTeamBattle] Using cached scores:', cachedScores);
-      setScores(cachedScores);
+    if (now - cachedScoresRef.current.lastUpdated < CACHE_TTL) {
+      console.log('[useTeamBattle] Using cached scores:', cachedScoresRef.current);
+      setScores(cachedScoresRef.current);
       return;
     }
 
@@ -61,7 +61,7 @@ export function useTeamBattle(): UseTeamBattleReturn {
         };
 
         console.log('[useTeamBattle] Updated scores:', newScores);
-        cachedScores = newScores;
+        cachedScoresRef.current = newScores;
         setScores(newScores);
       } else {
         console.warn('[useTeamBattle] Invalid response format:', data);
@@ -73,17 +73,18 @@ export function useTeamBattle(): UseTeamBattleReturn {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, []); // Empty deps - stable function
 
-  // Fetch on mount
+  // Fetch on mount - removed fetchScores from deps to prevent loop
   useEffect(() => {
     fetchScores();
 
     // Auto-refresh every 5 seconds
-    const interval = setInterval(fetchScores, 5000);
+    const interval = setInterval(() => fetchScores(), 5000);
 
     return () => clearInterval(interval);
-  }, [fetchScores]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only mount/unmount - fetchScores is stable
 
   return {
     scores,
@@ -105,8 +106,15 @@ export function useRegionDetection() {
   useEffect(() => {
     const detectRegion = async () => {
       try {
-        // Use a free geolocation API
-        const response = await fetch('https://ipapi.co/json/');
+        // Use a free geolocation API with timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+
+        const response = await fetch('https://ipapi.co/json/', {
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
         const data = await response.json();
 
         // Set country
@@ -145,7 +153,11 @@ export function useRegionDetection() {
           setRegion('EXTRANJERO');
         }
       } catch (err) {
-        console.error('[useRegionDetection] Error:', err);
+        if (err instanceof Error && err.name === 'AbortError') {
+          console.warn('[useRegionDetection] Request timeout, using fallback');
+        } else {
+          console.error('[useRegionDetection] Error:', err);
+        }
         setRegion('EXTRANJERO');
       } finally {
         setIsDetecting(false);

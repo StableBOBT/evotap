@@ -5,7 +5,11 @@ export const EnergyBar = memo(function EnergyBar() {
   // Use individual selectors to prevent unnecessary re-renders
   const energy = useGameStore((s) => s.energy);
   const maxEnergy = useGameStore((s) => s.maxEnergy);
-  const percentage = (energy / maxEnergy) * 100;
+
+  // Fix: Guard against NaN and invalid values
+  const safeEnergy = Number.isFinite(energy) && energy >= 0 ? energy : 0;
+  const safeMaxEnergy = Number.isFinite(maxEnergy) && maxEnergy > 0 ? maxEnergy : 1000;
+  const percentage = (safeEnergy / safeMaxEnergy) * 100;
   const isLow = percentage < 20;
   const isCritical = percentage < 10;
 
@@ -39,7 +43,7 @@ export const EnergyBar = memo(function EnergyBar() {
               <span className="text-xs uppercase tracking-wider text-white/50">
                 Energía
               </span>
-              {energy < maxEnergy && (
+              {safeEnergy < safeMaxEnergy && (
                 <span className="text-[10px] text-white/30 ml-2">
                   +1/min
                 </span>
@@ -59,10 +63,10 @@ export const EnergyBar = memo(function EnergyBar() {
                 }
               `}
             >
-              {energy.toLocaleString()}
+              {safeEnergy.toLocaleString()}
             </span>
             <span className="text-white/30 text-sm font-mono-game">
-              /{maxEnergy.toLocaleString()}
+              /{safeMaxEnergy.toLocaleString()}
             </span>
           </div>
         </div>

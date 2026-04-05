@@ -4,6 +4,8 @@ import { useTMA } from '../hooks/useTMA';
 
 function truncateAddress(address: string, start: number = 6, end: number = 4): string {
   if (!address) return '';
+  // Fix: Don't truncate if address is too short
+  if (address.length <= start + end) return address;
   return `${address.slice(0, start)}...${address.slice(-end)}`;
 }
 

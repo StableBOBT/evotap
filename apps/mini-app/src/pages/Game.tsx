@@ -15,8 +15,8 @@ import { useTeamBattle, useRegionDetection } from '../hooks/useTeamBattle';
 import { useGameSync } from '../hooks/useGameSync';
 import { useTMA } from '../hooks/useTMA';
 
-// Debug logging (temporarily enabled for diagnosis)
-const DEBUG = true;
+// Debug logging (only in development)
+const DEBUG = import.meta.env.DEV;
 const log = (msg: string, data?: unknown) => {
   if (DEBUG) console.log(`[Game] ${msg}`, data ?? '');
 };

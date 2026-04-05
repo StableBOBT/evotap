@@ -8,6 +8,10 @@ export const ScoreDisplay = memo(function ScoreDisplay() {
   const level = useGameStore((s) => s.level);
   const floatingScores = useUIStore((s) => s.floatingScores);
 
+  // Fix: Guard against NaN values
+  const safePoints = Number.isFinite(points) ? points : 0;
+  const safeLevel = Number.isFinite(level) && level > 0 ? level : 1;
+
   return (
     <div className="text-center relative animate-scale-in">
       {/* Glass card container */}
@@ -21,7 +25,7 @@ export const ScoreDisplay = memo(function ScoreDisplay() {
         >
           <span className="text-lg">🍃</span>
           <span className="text-xs uppercase tracking-wider font-semibold">Nivel</span>
-          <span className="font-bold font-mono-game text-lg">{level}</span>
+          <span className="font-bold font-mono-game text-lg">{safeLevel}</span>
         </div>
 
         {/* Score */}
@@ -30,7 +34,7 @@ export const ScoreDisplay = memo(function ScoreDisplay() {
             className="text-6xl font-black font-mono-game text-gradient text-glow tracking-tight"
             data-testid="score-display"
           >
-            {points.toLocaleString()}
+            {safePoints.toLocaleString()}
           </h1>
           <p className="text-sm text-white/50 mt-2 uppercase tracking-widest">
             Puntos EVO

@@ -67,7 +67,7 @@ export const TapButton = memo(function TapButton() {
 
   const isDisabled = energy <= 0;
   const isFullEnergy = energy >= maxEnergy;
-  const energyPercent = (energy / maxEnergy) * 100;
+  const energyPercent = maxEnergy > 0 ? (energy / maxEnergy) * 100 : 0; // Fix: Prevent division by zero
 
   const createParticles = useCallback((x: number, y: number) => {
     const newParticles: Particle[] = [];

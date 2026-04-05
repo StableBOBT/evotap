@@ -1,6 +1,27 @@
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://evotap-api.andeanlabs-58f.workers.dev';
 
 // =============================================================================
+// UTILITY FUNCTIONS
+// =============================================================================
+
+/**
+ * Generate UUID with fallback for older browsers or non-HTTPS contexts
+ */
+function generateUUID(): string {
+  // Try native crypto.randomUUID first
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+
+  // Fallback to Math.random-based UUID v4
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
+// =============================================================================
 // TYPES
 // =============================================================================
 
@@ -235,7 +256,7 @@ export const api = {
   tap: (initData: string, taps: number): Promise<ApiResponse<TapResponse>> =>
     request<TapResponse>('/api/v1/game/tap', initData, {
       method: 'POST',
-      body: JSON.stringify({ taps, nonce: crypto.randomUUID() }),
+      body: JSON.stringify({ taps, nonce: generateUUID() }),
     }),
 
   sync: (initData: string, state: SyncRequest): Promise<ApiResponse<SyncResponse>> =>
@@ -243,7 +264,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({
         ...state,
-        nonce: crypto.randomUUID(),
+        nonce: generateUUID(),
         timestamp: Date.now(),
       }),
     }),

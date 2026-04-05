@@ -117,10 +117,11 @@ export function useCloudStorage(): UseCloudStorageReturn {
     }
   }, [isAvailable]);
 
-  // Load game data on mount
+  // Load game data on mount - only once
   useEffect(() => {
     loadGameData();
-  }, [loadGameData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Fix: Only run on mount, loadGameData is stable with useCallback
 
   const saveGameData = useCallback(
     async (data: Partial<GameData>): Promise<boolean> => {
@@ -227,15 +228,40 @@ export function useDebouncedCloudSave(delayMs: number = 2000) {
     [delayMs]
   );
 
-  // Flush on unmount
+  // Flush on unmount and beforeunload
   useEffect(() => {
+    const handleBeforeUnload = () => {
+      // Use localStorage as synchronous fallback for pending saves
+      const currentPending = pendingDataRef.current;
+      if (currentPending) {
+        try {
+          localStorage.setItem('evo_pending_save', JSON.stringify(currentPending));
+          console.log('[CloudStorage] Saved pending data to localStorage on beforeunload');
+        } catch (error) {
+          console.error('[CloudStorage] Failed to save to localStorage:', error);
+        }
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
     return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
+
+      // Best-effort synchronous save attempt
       const currentPending = pendingDataRef.current;
       if (currentPending) {
-        saveGameDataRef.current(currentPending);
+        // Try localStorage as fallback since async won't complete
+        try {
+          localStorage.setItem('evo_pending_save', JSON.stringify(currentPending));
+          console.log('[CloudStorage] Saved pending data to localStorage on unmount');
+        } catch (error) {
+          console.error('[CloudStorage] Failed to save pending data:', error);
+        }
       }
     };
   }, []);

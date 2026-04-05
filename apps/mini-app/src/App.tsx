@@ -5,8 +5,8 @@ import { AchievementsList } from './components/AchievementsList';
 import { useUIStore } from './stores/uiStore';
 import { useGameStore } from './stores/gameStore';
 
-// Debug logging (temporarily enabled for diagnosis)
-const DEBUG = true;
+// Debug logging (only in development)
+const DEBUG = import.meta.env.DEV;
 const log = (msg: string, data?: unknown) => {
   if (DEBUG) console.log(`[App] ${msg}`, data ?? '');
 };

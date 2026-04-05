@@ -78,8 +78,13 @@ function calculateRegeneratedEnergy(
   const lastRefill = new Date(lastRefillTime).getTime();
 
   // Validate lastRefill is a valid timestamp
-  if (isNaN(lastRefill) || lastRefill <= 0) {
-    console.warn('[Game] Invalid lastRefillTime, using current time:', lastRefillTime);
+  // Fix: Also reject timestamps in the future (clock drift, cheating)
+  if (isNaN(lastRefill) || lastRefill <= 0 || lastRefill > now + 60000) {
+    console.warn('[Game] Invalid lastRefillTime (NaN, negative, or >1min in future):', {
+      lastRefillTime,
+      now,
+      diff: lastRefill - now
+    });
     return {
       energy: currentEnergy,
       lastRefill: new Date().toISOString(),
