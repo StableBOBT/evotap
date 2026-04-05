@@ -39,7 +39,7 @@ export function GamePage() {
   const [showStreakBonus, setShowStreakBonus] = useState(false);
 
   // Sync game state with backend API
-  const { isSyncing: isApiSyncing, forceFullSync } = useGameSync();
+  const { isSyncing: isApiSyncing } = useGameSync();
 
   // Fetch team battle scores
   const { scores } = useTeamBattle();
@@ -85,11 +85,8 @@ export function GamePage() {
   const handleTeamSelect = useCallback((selectedTeam: 'colla' | 'camba') => {
     selectTeam(selectedTeam);
     haptics.success();
-    // Force immediate sync to backend so taps count for the team
-    setTimeout(() => {
-      forceFullSync();
-    }, 100);
-  }, [selectTeam, haptics, forceFullSync]);
+    // Sync is handled automatically by useGameSync watching team changes
+  }, [selectTeam, haptics]);
 
   // Loading state
   if (!isInitialized) {

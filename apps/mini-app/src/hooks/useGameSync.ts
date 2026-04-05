@@ -4,88 +4,42 @@ import { useGameStore } from '../stores/gameStore';
 import { api } from '../services/api';
 import { useTMA } from './useTMA';
 
-const SYNC_INTERVAL = 5000; // Sync every 5 seconds
+const SYNC_INTERVAL = 5000;
 const MIN_TAPS_TO_SYNC = 1;
+const SYNC_DEBOUNCE_MS = 300;
 
 export function useGameSync() {
   const queryClient = useQueryClient();
   const { initDataRaw } = useTMA();
-  const syncTimeoutRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastSyncedTeamRef = useRef<string | null>(null);
+  const lastSyncedDeptRef = useRef<string | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const {
-    pendingTaps,
-    clearPendingTaps,
-    syncFromServer,
-    rechargeEnergy,
-    points,
-    energy,
-    totalTaps,
-    level,
-    team,
-    department,
-    currentStreak,
-    lastPlayDate,
-  } = useGameStore();
+  // Get store values
+  const pendingTaps = useGameStore((s) => s.pendingTaps);
+  const clearPendingTaps = useGameStore((s) => s.clearPendingTaps);
+  const syncFromServer = useGameStore((s) => s.syncFromServer);
+  const rechargeEnergy = useGameStore((s) => s.rechargeEnergy);
+  const getStateForSync = useGameStore((s) => s.getStateForSync);
+  const team = useGameStore((s) => s.team);
+  const department = useGameStore((s) => s.department);
 
-  // Fetch initial state
-  const { data: serverState, isLoading } = useQuery({
+  // Fetch initial state - only when initDataRaw is available
+  const { data: serverState } = useQuery({
     queryKey: ['gameState'],
     queryFn: () => api.getGameState(initDataRaw!),
     enabled: !!initDataRaw,
     staleTime: 30000,
     refetchOnWindowFocus: false,
+    retry: 1,
   });
 
-  // Full state sync mutation (includes team/department/streaks)
-  // Declared before useEffects that depend on it
-  const syncMutation = useMutation({
-    mutationFn: () => api.sync(initDataRaw!, {
-      points,
-      energy,
-      totalTaps,
-      level,
-      team,
-      department,
-      currentStreak,
-      lastPlayDate,
-    }),
-    onSuccess: (response) => {
-      if (response.success && response.data) {
-        console.log('[useGameSync] Full state synced to backend', {
-          team,
-          department,
-          streakDays: response.data.streakDays,
-        });
-        lastSyncedTeamRef.current = team;
-      }
-    },
-    onError: (error) => {
-      console.error('[useGameSync] Full sync failed:', error);
-    },
-  });
-
-  // Sync on mount - get server state and sync local team if exists
-  useEffect(() => {
-    if (serverState?.success && serverState.data) {
-      syncFromServer({
-        points: serverState.data.points,
-        energy: serverState.data.energy,
-        maxEnergy: serverState.data.maxEnergy,
-        level: serverState.data.level,
-      });
-
-      // If we have a local team but server doesn't, sync it
-      if (team && !serverState.data.team) {
-        console.log('[useGameSync] Local team exists but not on server, syncing:', team);
-        setTimeout(() => syncMutation.mutate(), 500);
-      }
-    }
-  }, [serverState, syncFromServer, team, syncMutation]);
-
-  // Tap mutation with optimistic update
+  // Tap mutation - stable reference
   const tapMutation = useMutation({
-    mutationFn: (taps: number) => api.tap(initDataRaw!, taps),
+    mutationFn: ({ taps, auth }: { taps: number; auth: string }) =>
+      api.tap(auth, taps),
     onSuccess: (response) => {
       if (response.success && response.data) {
         syncFromServer({
@@ -97,102 +51,140 @@ export function useGameSync() {
       }
     },
     onError: (error) => {
-      console.error('Tap sync failed:', error);
-      // Revert optimistic update if needed
+      console.error('[useGameSync] Tap sync failed:', error);
       queryClient.invalidateQueries({ queryKey: ['gameState'] });
     },
   });
 
-  // Sync team to backend when it changes
-  useEffect(() => {
-    // Don't sync if initDataRaw is not available (not in Telegram) or already syncing
-    if (!initDataRaw || syncMutation.isPending) return;
+  // Full state sync mutation - stable reference
+  const syncMutation = useMutation({
+    mutationFn: ({ auth, state }: { auth: string; state: ReturnType<typeof getStateForSync> }) =>
+      api.sync(auth, state),
+    onSuccess: (response, variables) => {
+      if (response.success && response.data) {
+        // Update refs with values from the mutation variables (not stale closure)
+        lastSyncedTeamRef.current = variables.state.team;
+        lastSyncedDeptRef.current = variables.state.department;
+        console.log('[useGameSync] Synced:', { team: variables.state.team, dept: variables.state.department });
+      }
+    },
+    onError: (error, variables) => {
+      console.error('[useGameSync] Sync failed:', error);
+      // Still update refs to prevent infinite retry
+      lastSyncedTeamRef.current = variables.state.team;
+      lastSyncedDeptRef.current = variables.state.department;
+    },
+  });
 
+  // Sync initial server state
+  useEffect(() => {
+    if (serverState?.success && serverState.data) {
+      syncFromServer({
+        points: serverState.data.points,
+        energy: serverState.data.energy,
+        maxEnergy: serverState.data.maxEnergy,
+        level: serverState.data.level,
+      });
+    }
+  }, [serverState, syncFromServer]);
+
+  // Debounced sync function - triggers on team/department changes
+  const debouncedSync = useCallback(() => {
+    if (!initDataRaw) return;
+
+    // Clear existing debounce
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+    }
+
+    debounceRef.current = setTimeout(() => {
+      if (syncMutation.isPending) return;
+
+      const state = getStateForSync();
+
+      // Only sync if team or department changed
+      const teamChanged = state.team && state.team !== lastSyncedTeamRef.current;
+      const deptChanged = state.department && state.department !== lastSyncedDeptRef.current;
+
+      if (teamChanged || deptChanged) {
+        syncMutation.mutate({ auth: initDataRaw, state });
+      }
+    }, SYNC_DEBOUNCE_MS);
+  }, [initDataRaw, getStateForSync, syncMutation.isPending]);
+
+  // Watch for team changes
+  useEffect(() => {
     if (team && team !== lastSyncedTeamRef.current) {
-      console.log('[useGameSync] Team changed, syncing to backend:', team);
-      // Small delay to ensure state is updated
-      const timeout = setTimeout(() => {
-        if (!syncMutation.isPending) {
-          syncMutation.mutate();
-        }
-      }, 200);
-      return () => clearTimeout(timeout);
+      debouncedSync();
     }
-  }, [team, initDataRaw, syncMutation]);
+  }, [team, debouncedSync]);
 
-  // Also sync when department changes (debounced with team to avoid duplicate calls)
+  // Watch for department changes
   useEffect(() => {
-    // Don't sync if initDataRaw is not available or no team yet
-    if (!initDataRaw || !team || syncMutation.isPending) return;
-
-    if (department) {
-      console.log('[useGameSync] Department set, syncing to backend:', department);
-      const timeout = setTimeout(() => {
-        if (!syncMutation.isPending) {
-          syncMutation.mutate();
-        }
-      }, 500); // Longer delay to avoid race with team sync
-      return () => clearTimeout(timeout);
+    if (department && department !== lastSyncedDeptRef.current) {
+      debouncedSync();
     }
-  }, [department, initDataRaw, team, syncMutation]);
+  }, [department, debouncedSync]);
 
-  // Periodic sync
+  // Sync pending taps
   const syncTaps = useCallback(() => {
-    if (pendingTaps >= MIN_TAPS_TO_SYNC && initDataRaw && !tapMutation.isPending) {
-      const tapsToSync = pendingTaps;
-      clearPendingTaps();
-      tapMutation.mutate(tapsToSync);
-    }
-  }, [pendingTaps, initDataRaw, tapMutation, clearPendingTaps]);
+    if (!initDataRaw || tapMutation.isPending) return;
 
-  // Set up periodic sync
+    const taps = pendingTaps;
+    if (taps >= MIN_TAPS_TO_SYNC) {
+      clearPendingTaps();
+      tapMutation.mutate({ taps, auth: initDataRaw });
+    }
+  }, [initDataRaw, pendingTaps, clearPendingTaps, tapMutation.isPending]);
+
+  // Periodic sync interval - setup once
   useEffect(() => {
-    syncTimeoutRef.current = setInterval(() => {
+    intervalRef.current = setInterval(() => {
       syncTaps();
       rechargeEnergy();
     }, SYNC_INTERVAL);
 
     return () => {
-      if (syncTimeoutRef.current) {
-        clearInterval(syncTimeoutRef.current);
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
       }
     };
   }, [syncTaps, rechargeEnergy]);
 
-  // Sync on visibility change (when app becomes visible)
+  // Sync on visibility change
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         rechargeEnergy();
         queryClient.invalidateQueries({ queryKey: ['gameState'] });
       } else {
-        // Sync before hiding
         syncTaps();
       }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [syncTaps, rechargeEnergy, queryClient]);
 
-  // Sync on unmount
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
-      syncTaps();
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+      if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [syncTaps]);
+  }, []);
 
-  // Force full sync (useful when team changes)
+  // Force full sync - for manual triggering
   const forceFullSync = useCallback(() => {
-    if (initDataRaw && !syncMutation.isPending) {
-      syncMutation.mutate();
-    }
-  }, [initDataRaw, syncMutation]);
+    if (!initDataRaw || syncMutation.isPending) return;
+
+    const state = getStateForSync();
+    syncMutation.mutate({ auth: initDataRaw, state });
+  }, [initDataRaw, getStateForSync, syncMutation.isPending]);
 
   return {
-    isLoading,
+    isLoading: false,
     isSyncing: tapMutation.isPending || syncMutation.isPending,
     forceSync: syncTaps,
     forceFullSync,
