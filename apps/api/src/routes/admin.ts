@@ -8,6 +8,11 @@ import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import type { Env } from '../types.js';
 import { createRedisClient } from '../lib/redis.js';
+import {
+  adminAuthMiddleware,
+  adminRateLimitMiddleware,
+  adminSensitiveRateLimitMiddleware,
+} from '../middleware/index.js';
 
 // =============================================================================
 // TYPES
@@ -15,41 +20,6 @@ import { createRedisClient } from '../lib/redis.js';
 
 interface AdminVariables {
   isAdmin: boolean;
-}
-
-// =============================================================================
-// AUTH MIDDLEWARE
-// =============================================================================
-
-/**
- * Admin authentication middleware
- * Validates admin key from header
- */
-async function adminAuth(
-  c: { env: Env; req: { header: (name: string) => string | undefined }; json: (data: object, status?: number) => Response; set: (key: string, value: boolean) => void },
-  next: () => Promise<void>
-) {
-  const adminKey = c.req.header('X-Admin-Key');
-
-  if (!adminKey) {
-    return c.json({ success: false, error: 'Admin key required', code: 'UNAUTHORIZED' }, 401);
-  }
-
-  // Generate expected admin key from bot token
-  const expectedKey = await crypto.subtle
-    .digest('SHA-256', new TextEncoder().encode(c.env.BOT_TOKEN + 'admin-dashboard'))
-    .then(buf =>
-      Array.from(new Uint8Array(buf))
-        .map(b => b.toString(16).padStart(2, '0'))
-        .join('')
-    );
-
-  if (adminKey !== expectedKey) {
-    return c.json({ success: false, error: 'Invalid admin key', code: 'FORBIDDEN' }, 403);
-  }
-
-  c.set('isAdmin', true);
-  await next();
 }
 
 // =============================================================================
@@ -70,6 +40,10 @@ const SearchUserSchema = z.object({
   query: z.string().min(1), // Telegram ID or username
 });
 
+const TopUsersQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(500).default(50),
+});
+
 // =============================================================================
 // ROUTER
 // =============================================================================
@@ -78,8 +52,9 @@ export const adminRouter = new Hono<{
   Bindings: Env;
   Variables: AdminVariables;
 }>()
-  // Apply admin auth to all routes
-  .use('*', adminAuth)
+  // Apply admin auth and rate limiting to all routes
+  .use('*', adminAuthMiddleware)
+  .use('*', adminRateLimitMiddleware)
 
   // GET /admin/stats - Get overall system stats
   .get('/stats', async (c) => {
@@ -112,13 +87,17 @@ export const adminRouter = new Hono<{
       const snapshotData = await redis.get('airdrop:snapshot:current');
       let snapshotInfo = null;
       if (snapshotData) {
-        const snapshot = JSON.parse(snapshotData);
-        snapshotInfo = {
-          root: airdropRoot,
-          totalRecipients: snapshot.totalRecipients,
-          totalAmount: snapshot.totalAmount,
-          createdAt: snapshot.createdAt,
-        };
+        try {
+          const snapshot = JSON.parse(snapshotData);
+          snapshotInfo = {
+            root: airdropRoot,
+            totalRecipients: snapshot.totalRecipients,
+            totalAmount: snapshot.totalAmount,
+            createdAt: snapshot.createdAt,
+          };
+        } catch (parseError) {
+          console.error('[Admin] Failed to parse snapshot data:', parseError);
+        }
       }
 
       return c.json({
@@ -152,9 +131,9 @@ export const adminRouter = new Hono<{
   })
 
   // GET /admin/users/top - Get top users
-  .get('/users/top', async (c) => {
+  .get('/users/top', zValidator('query', TopUsersQuerySchema), async (c) => {
     const redis = createRedisClient(c.env);
-    const limit = parseInt(c.req.query('limit') || '50');
+    const { limit } = c.req.valid('query');
 
     try {
       const topUsers = await redis.zrevrange('leaderboard:global', 0, limit - 1, true);
@@ -321,8 +300,8 @@ export const adminRouter = new Hono<{
     }
   })
 
-  // POST /admin/users/ban - Ban a user
-  .post('/users/ban', zValidator('json', BanUserSchema), async (c) => {
+  // POST /admin/users/ban - Ban a user (stricter rate limit)
+  .post('/users/ban', adminSensitiveRateLimitMiddleware, zValidator('json', BanUserSchema), async (c) => {
     const { telegramId, reason, duration } = c.req.valid('json');
     const redis = createRedisClient(c.env);
 
@@ -470,7 +449,7 @@ export const adminRouter = new Hono<{
   })
 
   // POST /admin/reset - Reset all Redis data (DANGEROUS - use with caution)
-  .post('/reset', async (c) => {
+  .post('/reset', adminSensitiveRateLimitMiddleware, async (c) => {
     const redis = createRedisClient(c.env);
     const confirmReset = c.req.query('confirm');
 

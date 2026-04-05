@@ -30,7 +30,15 @@ const app = new OpenAPIHono<{ Bindings: Env; Variables: Variables }>();
 app.use('*', requestIdMiddleware);
 app.use('*', logger());
 
-// CORS configuration
+// Allowed origins whitelist
+const ALLOWED_ORIGINS = [
+  'https://ton-miniapp-bolivia-one.vercel.app',
+  'https://ton-miniapp-bolivia.vercel.app',
+  'https://evotap.app',
+  'https://www.evotap.app',
+];
+
+// CORS configuration - tightened for security
 app.use(
   '*',
   cors({
@@ -43,16 +51,16 @@ app.use(
       ) {
         return origin;
       }
-      // Allow localhost for development
+      // Allow localhost for development only
       if (origin?.includes('localhost') || origin?.includes('127.0.0.1')) {
         return origin;
       }
-      // Allow your production domain
-      if (origin?.includes('evotap.app')) {
+      // Check against whitelist
+      if (origin && ALLOWED_ORIGINS.includes(origin)) {
         return origin;
       }
-      // Allow Vercel preview deployments
-      if (origin?.includes('vercel.app')) {
+      // Allow Vercel preview URLs for this specific project only
+      if (origin?.match(/^https:\/\/ton-miniapp-bolivia(-[a-z0-9]+)?\.vercel\.app$/)) {
         return origin;
       }
       return null;

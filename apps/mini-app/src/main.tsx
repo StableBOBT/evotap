@@ -5,6 +5,16 @@ import { TonConnectUIProvider } from '@tonconnect/ui-react';
 import { App } from './App';
 import './styles/index.css';
 
+// Initialize Eruda for mobile debugging (development only)
+if (import.meta.env.DEV) {
+  import('eruda').then((eruda) => {
+    eruda.default.init();
+    console.log('[Debug] Eruda initialized for mobile debugging');
+  }).catch((e) => {
+    console.warn('[Debug] Eruda failed to load:', e);
+  });
+}
+
 // Initialize Telegram Mini Apps SDK safely
 function initTelegramSDK() {
   try {

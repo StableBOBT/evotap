@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useMemo } from 'react';
 import { hapticFeedback } from '@telegram-apps/sdk-react';
 
 type HapticPattern = 'tap' | 'success' | 'levelUp' | 'error' | 'achievement';
@@ -128,7 +128,8 @@ export function useHaptics(): UseHapticsReturn {
   const error = useCallback(() => trigger('error'), [trigger]);
   const achievement = useCallback(() => trigger('achievement'), [trigger]);
 
-  return {
+  // Return stable object reference to prevent re-renders
+  return useMemo(() => ({
     trigger,
     tap,
     success,
@@ -136,5 +137,5 @@ export function useHaptics(): UseHapticsReturn {
     error,
     achievement,
     isSupported,
-  };
+  }), [trigger, tap, success, levelUp, error, achievement, isSupported]);
 }

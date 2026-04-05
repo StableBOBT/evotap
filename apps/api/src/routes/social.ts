@@ -43,9 +43,16 @@ async function checkTelegramMembership(
   userId: number
 ): Promise<{ isMember: boolean; status?: string }> {
   try {
+    // Add timeout to prevent hanging requests
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
     const response = await fetch(
-      `${TELEGRAM_API_BASE}${botToken}/getChatMember?chat_id=${chatId}&user_id=${userId}`
+      `${TELEGRAM_API_BASE}${botToken}/getChatMember?chat_id=${chatId}&user_id=${userId}`,
+      { signal: controller.signal }
     );
+
+    clearTimeout(timeoutId);
 
     const data = await response.json() as {
       ok: boolean;
@@ -64,7 +71,8 @@ async function checkTelegramMembership(
     const validStatuses = ['member', 'administrator', 'creator'];
     const isMember = validStatuses.includes(status || '');
 
-    return { isMember, status };
+    // Only include status if defined (exactOptionalPropertyTypes compatibility)
+    return status ? { isMember, status } : { isMember };
   } catch (error) {
     console.error('[Social] Error checking Telegram membership:', error);
     return { isMember: false };

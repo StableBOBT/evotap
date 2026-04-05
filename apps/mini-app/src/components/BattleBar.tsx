@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo, memo, useRef } from 'react';
 
 interface BattleBarProps {
   collaScore: number;
@@ -8,11 +8,18 @@ interface BattleBarProps {
   size?: 'small' | 'medium' | 'large';
 }
 
+// Static size classes (moved outside component)
+const SIZE_CLASSES = {
+  small: { bar: 'h-2', text: 'text-xs', icon: 'text-sm' },
+  medium: { bar: 'h-3', text: 'text-sm', icon: 'text-base' },
+  large: { bar: 'h-4', text: 'text-base', icon: 'text-lg' },
+} as const;
+
 /**
  * Battle bar showing Colla vs Camba scores in real-time
  * Similar to TikTok live battle voting
  */
-export function BattleBar({
+export const BattleBar = memo(function BattleBar({
   collaScore,
   cambaScore,
   userTeam,
@@ -23,6 +30,9 @@ export function BattleBar({
   const [displayCambaScore, setDisplayCambaScore] = useState(cambaScore);
   const [isAnimating, setIsAnimating] = useState(false);
 
+  // Track previous scores to detect changes
+  const prevScoresRef = useRef({ colla: collaScore, camba: cambaScore });
+
   // Animate score changes
   useEffect(() => {
     if (!animated) {
@@ -31,14 +41,20 @@ export function BattleBar({
       return;
     }
 
-    // Detect which side changed
-    if (collaScore !== displayCollaScore || cambaScore !== displayCambaScore) {
+    // Only animate if props changed
+    const prevColla = prevScoresRef.current.colla;
+    const prevCamba = prevScoresRef.current.camba;
+
+    if (collaScore !== prevColla || cambaScore !== prevCamba) {
+      prevScoresRef.current = { colla: collaScore, camba: cambaScore };
       setIsAnimating(true);
 
       // Smooth animation
       const steps = 20;
-      const collaDiff = (collaScore - displayCollaScore) / steps;
-      const cambaDiff = (cambaScore - displayCambaScore) / steps;
+      const startColla = displayCollaScore;
+      const startCamba = displayCambaScore;
+      const collaDiff = (collaScore - startColla) / steps;
+      const cambaDiff = (cambaScore - startCamba) / steps;
       let step = 0;
 
       const interval = setInterval(() => {
@@ -49,8 +65,8 @@ export function BattleBar({
           setIsAnimating(false);
           clearInterval(interval);
         } else {
-          setDisplayCollaScore(prev => prev + collaDiff);
-          setDisplayCambaScore(prev => prev + cambaDiff);
+          setDisplayCollaScore(startColla + collaDiff * step);
+          setDisplayCambaScore(startCamba + cambaDiff * step);
         }
       }, 30);
 
@@ -58,20 +74,18 @@ export function BattleBar({
     }
   }, [collaScore, cambaScore, animated]);
 
-  const totalScore = displayCollaScore + displayCambaScore || 1;
-  const collaPercent = Math.round((displayCollaScore / totalScore) * 100);
-  const cambaPercent = 100 - collaPercent;
+  // Memoized calculations
+  const { collaPercent, cambaPercent, winner } = useMemo(() => {
+    const total = displayCollaScore + displayCambaScore || 1;
+    const collaPct = Math.round((displayCollaScore / total) * 100);
+    return {
+      collaPercent: collaPct,
+      cambaPercent: 100 - collaPct,
+      winner: collaScore > cambaScore ? 'colla' as const : cambaScore > collaScore ? 'camba' as const : null,
+    };
+  }, [displayCollaScore, displayCambaScore, collaScore, cambaScore]);
 
-  const sizeClasses = {
-    small: { bar: 'h-2', text: 'text-xs', icon: 'text-sm' },
-    medium: { bar: 'h-3', text: 'text-sm', icon: 'text-base' },
-    large: { bar: 'h-4', text: 'text-base', icon: 'text-lg' },
-  };
-
-  const classes = sizeClasses[size];
-
-  // Determine winner
-  const winner = collaScore > cambaScore ? 'colla' : cambaScore > collaScore ? 'camba' : null;
+  const classes = SIZE_CLASSES[size];
 
   return (
     <div className="w-full">
@@ -168,4 +182,4 @@ export function BattleBar({
       )}
     </div>
   );
-}
+});

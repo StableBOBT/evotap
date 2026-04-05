@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import {
   TapButton,
   EnergyBar,
@@ -15,22 +15,23 @@ import { useTeamBattle, useRegionDetection } from '../hooks/useTeamBattle';
 import { useGameSync } from '../hooks/useGameSync';
 
 export function GamePage() {
-  const {
-    isSyncing,
-    isCloudAvailable,
-    isInitialized,
-    level,
-    energy,
-    maxEnergy,
-    team,
-    department,
-    currentStreak,
-    streakBonusCollected,
-    selectTeam,
-    selectDepartment,
-    initialize,
-    rechargeEnergy
-  } = useGameStore();
+  // Granular selectors to prevent unnecessary re-renders
+  const isSyncing = useGameStore((s) => s.isSyncing);
+  const isCloudAvailable = useGameStore((s) => s.isCloudAvailable);
+  const isInitialized = useGameStore((s) => s.isInitialized);
+  const level = useGameStore((s) => s.level);
+  const energy = useGameStore((s) => s.energy);
+  const maxEnergy = useGameStore((s) => s.maxEnergy);
+  const team = useGameStore((s) => s.team);
+  const department = useGameStore((s) => s.department);
+  const currentStreak = useGameStore((s) => s.currentStreak);
+  const streakBonusCollected = useGameStore((s) => s.streakBonusCollected);
+  const selectTeam = useGameStore((s) => s.selectTeam);
+  const selectDepartment = useGameStore((s) => s.selectDepartment);
+  const rechargeEnergy = useGameStore((s) => s.rechargeEnergy);
+
+  // UI store with granular selector
+  const setPage = useUIStore((s) => s.setPage);
 
   const haptics = useHaptics();
   const previousLevelRef = useRef(level);
@@ -46,33 +47,7 @@ export function GamePage() {
   // Detect user region
   const { region: detectedRegion } = useRegionDetection();
 
-  // Initialize from CloudStorage on mount - with safety timeout
-  useEffect(() => {
-    let mounted = true;
-
-    const init = async () => {
-      try {
-        await initialize();
-      } catch (e) {
-        console.warn('[Game] Init error:', e);
-      }
-    };
-
-    init();
-
-    // Safety: force initialized after 2 seconds regardless
-    const safetyTimeout = setTimeout(() => {
-      if (mounted && !useGameStore.getState().isInitialized) {
-        console.warn('[Game] Forcing initialized state');
-        useGameStore.setState({ isInitialized: true });
-      }
-    }, 2000);
-
-    return () => {
-      mounted = false;
-      clearTimeout(safetyTimeout);
-    };
-  }, [initialize]);
+  // Note: Initialize is called in App.tsx, not here to avoid race conditions
 
   // Auto-set department from detected region (only valid Bolivian departments)
   useEffect(() => {
@@ -106,15 +81,15 @@ export function GamePage() {
     previousLevelRef.current = level;
   }, [level, isInitialized, haptics]);
 
-  // Handle team selection
-  const handleTeamSelect = (selectedTeam: 'colla' | 'camba') => {
+  // Handle team selection (memoized)
+  const handleTeamSelect = useCallback((selectedTeam: 'colla' | 'camba') => {
     selectTeam(selectedTeam);
     haptics.success();
     // Force immediate sync to backend so taps count for the team
     setTimeout(() => {
       forceFullSync();
     }, 100);
-  };
+  }, [selectTeam, haptics, forceFullSync]);
 
   // Loading state
   if (!isInitialized) {
@@ -137,10 +112,8 @@ export function GamePage() {
     );
   }
 
-  // Low energy warning phrase
-  const isLowEnergy = energy < maxEnergy * 0.1;
-
-  const setPage = useUIStore((s) => s.setPage);
+  // Low energy warning phrase (memoized)
+  const isLowEnergy = useMemo(() => energy < maxEnergy * 0.1, [energy, maxEnergy]);
 
   return (
     <div className="flex flex-col items-center justify-center flex-1 px-4 gap-4">

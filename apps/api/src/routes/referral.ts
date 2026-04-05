@@ -85,109 +85,154 @@ export const referralRouter = new Hono<{
     const telegramId = c.get('telegramId');
     const redis = createRedisClient(c.env);
 
-    // Get current user state
-    const state = await getOrCreateUserState(redis, telegramId);
+    // Acquire lock to prevent race conditions during referral claiming
+    const lockKey = `lock:referral:${telegramId}`;
+    const lockAcquired = await redis.setnx(lockKey, '1', 30); // 30 second lock
 
-    // Check if user already has a referrer
-    if (state.referredBy !== null) {
+    if (!lockAcquired) {
       return c.json(
         {
           success: false,
-          error: 'You have already claimed a referral bonus',
-          code: 'ALREADY_REFERRED',
+          error: 'Please wait, your previous request is being processed',
+          code: 'REQUEST_IN_PROGRESS',
         },
-        400
+        429
       );
     }
 
-    // Check if this is the user's own code
-    if (state.referralCode.toUpperCase() === code.toUpperCase()) {
+    try {
+      // Get current user state
+      const state = await getOrCreateUserState(redis, telegramId);
+
+      // Check if user already has a referrer
+      if (state.referredBy !== null) {
+        await redis.del(lockKey); // Release lock
+        return c.json(
+          {
+            success: false,
+            error: 'You have already claimed a referral bonus',
+            code: 'ALREADY_REFERRED',
+          },
+          400
+        );
+      }
+
+      // Check if this is the user's own code
+      if (state.referralCode.toUpperCase() === code.toUpperCase()) {
+        await redis.del(lockKey); // Release lock
+        return c.json(
+          {
+            success: false,
+            error: 'Cannot use your own referral code',
+            code: 'SELF_REFERRAL',
+          },
+          400
+        );
+      }
+
+      // Look up referrer by code
+      const referrerIdStr = await redis.get(REDIS_KEYS.referralCode(code.toUpperCase()));
+
+      if (!referrerIdStr) {
+        await redis.del(lockKey); // Release lock
+        return c.json(
+          {
+            success: false,
+            error: 'Invalid referral code',
+            code: 'INVALID_CODE',
+          },
+          400
+        );
+      }
+
+      const referrerId = parseInt(referrerIdStr, 10);
+      if (isNaN(referrerId) || referrerId <= 0) {
+        await redis.del(lockKey);
+        console.error('[Referral] Invalid referrer ID in Redis:', referrerIdStr);
+        return c.json(
+          {
+            success: false,
+            error: 'Invalid referral code data',
+            code: 'INVALID_CODE_DATA',
+          },
+          400
+        );
+      }
+
+      // Verify referrer exists
+      const referrerState = await loadUserState(redis, referrerId);
+      if (!referrerState) {
+        await redis.del(lockKey); // Release lock
+        return c.json(
+          {
+            success: false,
+            error: 'Referrer not found',
+            code: 'REFERRER_NOT_FOUND',
+          },
+          400
+        );
+      }
+
+      // Apply bonus points to both users
+      const inviteeBonus = GAME_CONFIG.REFERRAL_BONUS_INVITEE;
+      const referrerBonus = GAME_CONFIG.REFERRAL_BONUS_REFERRER;
+
+      // Update invitee state
+      const updatedInviteeState: UserGameState = {
+        ...state,
+        points: state.points + inviteeBonus,
+        referredBy: String(referrerId),
+      };
+      await saveUserState(redis, telegramId, updatedInviteeState);
+
+      // Update referrer state
+      const updatedReferrerState: UserGameState = {
+        ...referrerState,
+        points: referrerState.points + referrerBonus,
+      };
+      await saveUserState(redis, referrerId, updatedReferrerState);
+
+      // Add to referrer's referral list
+      await redis.sadd(REDIS_KEYS.userReferrals(referrerId), String(telegramId));
+
+      // Update leaderboards with bonus points
+      await Promise.all([
+        redis.zincrby(REDIS_KEYS.leaderboardGlobal, inviteeBonus, String(telegramId)),
+        redis.zincrby(REDIS_KEYS.leaderboardGlobal, referrerBonus, String(referrerId)),
+        // Team leaderboards if applicable
+        state.team
+          ? redis.zincrby(REDIS_KEYS.leaderboardTeam(state.team), inviteeBonus, String(telegramId))
+          : Promise.resolve(0),
+        referrerState.team
+          ? redis.zincrby(
+              REDIS_KEYS.leaderboardTeam(referrerState.team),
+              referrerBonus,
+              String(referrerId)
+            )
+          : Promise.resolve(0),
+      ]);
+
+      await redis.del(lockKey); // Release lock on success
+      return c.json({
+        success: true,
+        data: {
+          claimed: true,
+          bonusPoints: inviteeBonus,
+          referrerBonus,
+        },
+      });
+    } catch (error) {
+      await redis.del(lockKey); // Release lock on error
+      console.error('[Referral] Error claiming referral:', error);
       return c.json(
         {
           success: false,
-          error: 'Cannot use your own referral code',
-          code: 'SELF_REFERRAL',
+          error: 'Failed to claim referral',
+          code: 'CLAIM_ERROR',
         },
-        400
+        500
       );
     }
-
-    // Look up referrer by code
-    const referrerIdStr = await redis.get(REDIS_KEYS.referralCode(code.toUpperCase()));
-
-    if (!referrerIdStr) {
-      return c.json(
-        {
-          success: false,
-          error: 'Invalid referral code',
-          code: 'INVALID_CODE',
-        },
-        400
-      );
-    }
-
-    const referrerId = parseInt(referrerIdStr, 10);
-
-    // Verify referrer exists
-    const referrerState = await loadUserState(redis, referrerId);
-    if (!referrerState) {
-      return c.json(
-        {
-          success: false,
-          error: 'Referrer not found',
-          code: 'REFERRER_NOT_FOUND',
-        },
-        400
-      );
-    }
-
-    // Apply bonus points to both users
-    const inviteeBonus = GAME_CONFIG.REFERRAL_BONUS_INVITEE;
-    const referrerBonus = GAME_CONFIG.REFERRAL_BONUS_REFERRER;
-
-    // Update invitee state
-    const updatedInviteeState: UserGameState = {
-      ...state,
-      points: state.points + inviteeBonus,
-      referredBy: referrerId,
-    };
-    await saveUserState(redis, telegramId, updatedInviteeState);
-
-    // Update referrer state
-    const updatedReferrerState: UserGameState = {
-      ...referrerState,
-      points: referrerState.points + referrerBonus,
-    };
-    await saveUserState(redis, referrerId, updatedReferrerState);
-
-    // Add to referrer's referral list
-    await redis.sadd(REDIS_KEYS.userReferrals(referrerId), String(telegramId));
-
-    // Update leaderboards with bonus points
-    await Promise.all([
-      redis.zincrby(REDIS_KEYS.leaderboardGlobal, inviteeBonus, String(telegramId)),
-      redis.zincrby(REDIS_KEYS.leaderboardGlobal, referrerBonus, String(referrerId)),
-      // Team leaderboards if applicable
-      state.team
-        ? redis.zincrby(REDIS_KEYS.leaderboardTeam(state.team), inviteeBonus, String(telegramId))
-        : Promise.resolve(0),
-      referrerState.team
-        ? redis.zincrby(
-            REDIS_KEYS.leaderboardTeam(referrerState.team),
-            referrerBonus,
-            String(referrerId)
-          )
-        : Promise.resolve(0),
-    ]);
-
-    return c.json({
-      success: true,
-      data: {
-        claimed: true,
-        bonusPoints: inviteeBonus,
-        referrerBonus,
-      },
-    });
   })
 
   // GET /referral/code - Get my referral code
@@ -230,6 +275,16 @@ export const referralRouter = new Hono<{
     }
 
     const ownerId = parseInt(ownerIdStr, 10);
+    if (isNaN(ownerId) || ownerId <= 0) {
+      return c.json({
+        success: true,
+        data: {
+          valid: false,
+          canClaim: false,
+          reason: 'Invalid code data',
+        },
+      });
+    }
 
     // Check if it's the user's own code
     if (telegramId && ownerId === telegramId) {

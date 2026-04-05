@@ -65,6 +65,18 @@ export const RATE_LIMIT_CONFIGS = {
     windowSeconds: 3600,
     keyPrefix: 'ratelimit:claim:',
   },
+  /** Admin operations - strict limit */
+  admin: {
+    maxRequests: 30,
+    windowSeconds: 60,
+    keyPrefix: 'ratelimit:admin:',
+  },
+  /** Admin sensitive operations (ban, reset) - very strict */
+  adminSensitive: {
+    maxRequests: 10,
+    windowSeconds: 60,
+    keyPrefix: 'ratelimit:admin-sensitive:',
+  },
 } as const;
 
 /**
@@ -150,9 +162,16 @@ export function createRateLimitMiddleware(
 
       await next();
     } catch (error) {
-      // Log error but don't fail the request - Redis might be unavailable
-      console.error('[RateLimit] Redis error:', error);
-      await next();
+      // Fail-closed: reject requests when rate limiting is unavailable
+      console.error('[RateLimit] Redis error - failing closed:', error);
+      return c.json(
+        {
+          success: false,
+          error: 'Service temporarily unavailable',
+          code: 'SERVICE_UNAVAILABLE',
+        },
+        503
+      );
     }
   };
 }
@@ -226,8 +245,16 @@ export const tapRateLimitMiddleware: MiddlewareHandler<{
 
     await next();
   } catch (error) {
-    console.error('[RateLimit] Redis error:', error);
-    await next();
+    // Fail-closed: reject requests when rate limiting is unavailable
+    console.error('[RateLimit] Redis error - failing closed:', error);
+    return c.json(
+      {
+        success: false,
+        error: 'Service temporarily unavailable',
+        code: 'SERVICE_UNAVAILABLE',
+      },
+      503
+    );
   }
 };
 
@@ -240,6 +267,88 @@ export const apiRateLimit = createRateLimitMiddleware('api');
 export const walletRateLimit = createRateLimitMiddleware('wallet');
 export const referralRateLimit = createRateLimitMiddleware('referral');
 export const claimRateLimit = createRateLimitMiddleware('claim');
+
+/**
+ * Admin rate limit middleware (uses IP since no telegramId)
+ */
+export const adminRateLimitMiddleware: MiddlewareHandler<{
+  Bindings: Env;
+  Variables: Variables;
+}> = async (c, next) => {
+  const ip = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || 'unknown';
+
+  try {
+    const redis = createRedisClient(c.env);
+    const result = await checkRateLimit(redis, ip, RATE_LIMIT_CONFIGS.admin);
+
+    setRateLimitHeaders(c, result);
+
+    if (!result.success) {
+      return c.json(
+        {
+          success: false,
+          error: 'Admin rate limit exceeded',
+          code: 'ADMIN_RATE_LIMITED',
+          retryAfter: result.resetIn,
+        },
+        429
+      );
+    }
+
+    await next();
+  } catch (error) {
+    console.error('[RateLimit] Redis error - failing closed:', error);
+    return c.json(
+      {
+        success: false,
+        error: 'Service temporarily unavailable',
+        code: 'SERVICE_UNAVAILABLE',
+      },
+      503
+    );
+  }
+};
+
+/**
+ * Admin sensitive operations rate limit (stricter)
+ */
+export const adminSensitiveRateLimitMiddleware: MiddlewareHandler<{
+  Bindings: Env;
+  Variables: Variables;
+}> = async (c, next) => {
+  const ip = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || 'unknown';
+
+  try {
+    const redis = createRedisClient(c.env);
+    const result = await checkRateLimit(redis, ip, RATE_LIMIT_CONFIGS.adminSensitive);
+
+    setRateLimitHeaders(c, result);
+
+    if (!result.success) {
+      return c.json(
+        {
+          success: false,
+          error: 'Too many admin operations - please wait',
+          code: 'ADMIN_SENSITIVE_RATE_LIMITED',
+          retryAfter: result.resetIn,
+        },
+        429
+      );
+    }
+
+    await next();
+  } catch (error) {
+    console.error('[RateLimit] Redis error - failing closed:', error);
+    return c.json(
+      {
+        success: false,
+        error: 'Service temporarily unavailable',
+        code: 'SERVICE_UNAVAILABLE',
+      },
+      503
+    );
+  }
+};
 
 /**
  * IP-based rate limiting for unauthenticated requests
@@ -274,7 +383,64 @@ export const ipRateLimitMiddleware: MiddlewareHandler<{
 
     await next();
   } catch (error) {
-    console.error('[RateLimit] Redis error:', error);
+    // Fail-closed: reject requests when rate limiting is unavailable
+    console.error('[RateLimit] Redis error - failing closed:', error);
+    return c.json(
+      {
+        success: false,
+        error: 'Service temporarily unavailable',
+        code: 'SERVICE_UNAVAILABLE',
+      },
+      503
+    );
+  }
+};
+
+/**
+ * IP-based rate limiting specifically for tap endpoint
+ * Prevents abuse from multiple accounts on same IP
+ * More restrictive than user-based limit: 100 taps/10s per IP
+ */
+export const tapIpRateLimitMiddleware: MiddlewareHandler<{
+  Bindings: Env;
+  Variables: Variables;
+}> = async (c, next) => {
+  const ip = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || 'unknown';
+
+  try {
+    const redis = createRedisClient(c.env);
+    const result = await checkRateLimit(redis, ip, {
+      maxRequests: 100,   // 100 taps per 10 seconds per IP
+      windowSeconds: 10,  // (allows ~10 concurrent users per IP)
+      keyPrefix: 'ratelimit:tap-ip:',
+    });
+
+    if (!result.success) {
+      console.warn('[RateLimit] IP tap limit exceeded:', {
+        ip: ip.slice(0, 8) + '***', // Partial IP for privacy
+        timestamp: new Date().toISOString(),
+      });
+      return c.json(
+        {
+          success: false,
+          error: 'Too many taps from this network',
+          code: 'IP_TAP_RATE_LIMITED',
+          retryAfter: result.resetIn,
+        },
+        429
+      );
+    }
+
     await next();
+  } catch (error) {
+    console.error('[RateLimit] Redis error - failing closed:', error);
+    return c.json(
+      {
+        success: false,
+        error: 'Service temporarily unavailable',
+        code: 'SERVICE_UNAVAILABLE',
+      },
+      503
+    );
   }
 };

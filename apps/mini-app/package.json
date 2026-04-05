@@ -13,15 +13,13 @@
     "lint": "eslint src --ext .ts,.tsx"
   },
   "dependencies": {
-    "@app/core": "workspace:*",
     "@app/config": "workspace:*",
-    "@telegram-apps/sdk-react": "^3.2.4",
-    "@telegram-apps/telegram-ui": "^2.1.11",
-    "@tonconnect/ui-react": "^2.0.9",
+    "@app/core": "workspace:*",
     "@tanstack/react-query": "^5.63.0",
+    "@telegram-apps/sdk-react": "^3.2.4",
+    "@tonconnect/ui-react": "^2.0.9",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-router-dom": "^7.1.2",
     "zustand": "^5.0.3"
   },
   "devDependencies": {
@@ -31,6 +29,7 @@
     "@types/react-dom": "^19.0.2",
     "@vitejs/plugin-react-swc": "^3.7.2",
     "autoprefixer": "^10.4.20",
+    "eruda": "^3.4.3",
     "jsdom": "^26.0.0",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",

@@ -38,10 +38,10 @@
   --bg-glass: rgba(255, 255, 255, 0.05);
   --bg-glass-hover: rgba(255, 255, 255, 0.1);
 
-  /* Text colors */
+  /* Text colors - WCAG AA compliant contrast ratios */
   --text-primary: #ffffff;
-  --text-secondary: rgba(255, 255, 255, 0.7);
-  --text-muted: rgba(255, 255, 255, 0.5);
+  --text-secondary: rgba(255, 255, 255, 0.75);
+  --text-muted: rgba(255, 255, 255, 0.6);
 
   /* Glow colors - Evo themed */
   --glow-primary: rgba(0, 71, 171, 0.4);
@@ -501,16 +501,28 @@ body {
 
 /* Reduce motion for users who prefer it */
 @media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
   .tap-button-glow,
   .tap-button-bg,
-  .tap-button-shine::before {
-    animation: none;
+  .tap-button-shine::before,
+  .animate-pulse,
+  .animate-bounce,
+  .animate-spin {
+    animation: none !important;
   }
 
   .tap-ripple,
   .tap-particle,
   .tap-floating-number {
-    animation-duration: 0.1s;
+    display: none !important;
   }
 }
 

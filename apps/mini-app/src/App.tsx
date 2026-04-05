@@ -1,9 +1,26 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { Header, Navigation, SplashScreen, AchievementNotification } from './components';
-import { GamePage, LeaderboardPage, ProfilePage, TasksPage, TeamSelectionPage, AirdropPage, HowToPlayPage } from './pages';
+import { GamePage } from './pages'; // Keep main page eager
 import { AchievementsList } from './components/AchievementsList';
 import { useUIStore } from './stores/uiStore';
 import { useGameStore } from './stores/gameStore';
+
+// Lazy load non-critical pages for better initial load performance
+const LeaderboardPage = lazy(() => import('./pages/Leaderboard').then(m => ({ default: m.LeaderboardPage })));
+const ProfilePage = lazy(() => import('./pages/Profile').then(m => ({ default: m.ProfilePage })));
+const TasksPage = lazy(() => import('./pages/Tasks').then(m => ({ default: m.TasksPage })));
+const TeamSelectionPage = lazy(() => import('./pages/TeamSelection').then(m => ({ default: m.TeamSelectionPage })));
+const AirdropPage = lazy(() => import('./pages/Airdrop').then(m => ({ default: m.AirdropPage })));
+const HowToPlayPage = lazy(() => import('./pages/HowToPlay').then(m => ({ default: m.HowToPlayPage })));
+
+// Loading fallback for lazy pages
+function PageLoader() {
+  return (
+    <div className="flex-1 flex items-center justify-center">
+      <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+    </div>
+  );
+}
 
 // Fast loading - max 2 seconds total
 const MAX_LOAD_TIME = 2000;
@@ -78,13 +95,29 @@ export function App() {
       case 'game':
         return <GamePage />;
       case 'leaderboard':
-        return <LeaderboardPage />;
+        return (
+          <Suspense fallback={<PageLoader />}>
+            <LeaderboardPage />
+          </Suspense>
+        );
       case 'profile':
-        return <ProfilePage />;
+        return (
+          <Suspense fallback={<PageLoader />}>
+            <ProfilePage />
+          </Suspense>
+        );
       case 'tasks':
-        return <TasksPage />;
+        return (
+          <Suspense fallback={<PageLoader />}>
+            <TasksPage />
+          </Suspense>
+        );
       case 'teams':
-        return <TeamSelectionPage />;
+        return (
+          <Suspense fallback={<PageLoader />}>
+            <TeamSelectionPage />
+          </Suspense>
+        );
       case 'achievements':
         return (
           <div className="flex-1 px-4 py-6 pb-24">
@@ -92,9 +125,17 @@ export function App() {
           </div>
         );
       case 'airdrop':
-        return <AirdropPage />;
+        return (
+          <Suspense fallback={<PageLoader />}>
+            <AirdropPage />
+          </Suspense>
+        );
       case 'howtoplay':
-        return <HowToPlayPage />;
+        return (
+          <Suspense fallback={<PageLoader />}>
+            <HowToPlayPage />
+          </Suspense>
+        );
       default:
         return <GamePage />;
     }

@@ -1,9 +1,12 @@
+import { memo } from 'react';
 import { useGameStore } from '../stores/gameStore';
 import { useUIStore } from '../stores/uiStore';
 
-export function ScoreDisplay() {
-  const { points, level } = useGameStore();
-  const { floatingScores } = useUIStore();
+export const ScoreDisplay = memo(function ScoreDisplay() {
+  // Use individual selectors to prevent unnecessary re-renders
+  const points = useGameStore((s) => s.points);
+  const level = useGameStore((s) => s.level);
+  const floatingScores = useUIStore((s) => s.floatingScores);
 
   return (
     <div className="text-center relative animate-scale-in">
@@ -58,4 +61,4 @@ export function ScoreDisplay() {
       />
     </div>
   );
-}
+});

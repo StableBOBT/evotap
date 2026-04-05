@@ -3,8 +3,11 @@
  */
 
 import { Hono } from 'hono';
+import { z } from 'zod';
+import { zValidator } from '@hono/zod-validator';
 import type { Env, Variables } from '../types.js';
 import { createRedisClient } from '../lib/redis.js';
+import { adminAuthMiddleware } from '../middleware/index.js';
 import {
   getCurrentSeason,
   createSeason,
@@ -15,6 +18,14 @@ import {
   getSeasonTimeRemaining,
   SEASON_CONFIG,
 } from '../lib/seasons.js';
+
+// =============================================================================
+// SCHEMAS
+// =============================================================================
+
+const LeaderboardQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(100),
+});
 
 // =============================================================================
 // ROUTER
@@ -123,9 +134,9 @@ export const seasonsRouter = new Hono<{
   })
 
   // GET /seasons/leaderboard - Get season leaderboard (top 100)
-  .get('/leaderboard', async (c) => {
+  .get('/leaderboard', zValidator('query', LeaderboardQuerySchema), async (c) => {
     const redis = createRedisClient(c.env);
-    const limit = parseInt(c.req.query('limit') || '100');
+    const { limit } = c.req.valid('query');
 
     const season = await getCurrentSeason(redis);
     if (!season) {
@@ -160,21 +171,7 @@ export const seasonsRouter = new Hono<{
   })
 
   // POST /seasons/admin/create - Create new season (admin only)
-  .post('/admin/create', async (c) => {
-    // Verify admin
-    const adminKey = c.req.header('X-Admin-Key');
-    const expectedKey = await crypto.subtle
-      .digest('SHA-256', new TextEncoder().encode(c.env.BOT_TOKEN + 'admin-dashboard'))
-      .then((buf) =>
-        Array.from(new Uint8Array(buf))
-          .map((b) => b.toString(16).padStart(2, '0'))
-          .join('')
-      );
-
-    if (adminKey !== expectedKey) {
-      return c.json({ success: false, error: 'Unauthorized' }, 403);
-    }
-
+  .post('/admin/create', adminAuthMiddleware, async (c) => {
     const redis = createRedisClient(c.env);
     const body = await c.req.json<{ name?: string; prizePool?: string }>();
 
@@ -200,21 +197,7 @@ export const seasonsRouter = new Hono<{
   })
 
   // POST /seasons/admin/end - End current season (admin only)
-  .post('/admin/end', async (c) => {
-    // Verify admin
-    const adminKey = c.req.header('X-Admin-Key');
-    const expectedKey = await crypto.subtle
-      .digest('SHA-256', new TextEncoder().encode(c.env.BOT_TOKEN + 'admin-dashboard'))
-      .then((buf) =>
-        Array.from(new Uint8Array(buf))
-          .map((b) => b.toString(16).padStart(2, '0'))
-          .join('')
-      );
-
-    if (adminKey !== expectedKey) {
-      return c.json({ success: false, error: 'Unauthorized' }, 403);
-    }
-
+  .post('/admin/end', adminAuthMiddleware, async (c) => {
     const redis = createRedisClient(c.env);
     const season = await getCurrentSeason(redis);
 

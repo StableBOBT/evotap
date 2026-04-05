@@ -23,20 +23,62 @@ const UpdateProfileSchema = z.object({
 
 /**
  * Validate TON wallet address format
+ * TON addresses are either:
+ * - Raw format: 64 hex chars (workchain + account)
+ * - User-friendly format: base64url encoded, 48 chars
+ *   - First char indicates: E/U = mainnet, k/0 = testnet
+ *   - Second char: Q = bounceable, q = non-bounceable (rare)
+ *   - Contains embedded CRC16 checksum (last 2 bytes)
  */
-function isValidTonAddress(address: string): boolean {
-  // TON addresses are either:
-  // - Raw format: 64 hex chars
-  // - User-friendly: starts with EQ/UQ/kQ/0Q and is ~48 chars
-  if (/^[0-9a-fA-F]{64}$/.test(address)) {
-    return true; // Raw address
+function isValidTonAddress(address: string): { valid: boolean; reason?: string } {
+  if (!address || typeof address !== 'string') {
+    return { valid: false, reason: 'Address is required' };
   }
 
-  if (/^[EUkK0][Qq][A-Za-z0-9_-]{46}$/.test(address)) {
-    return true; // User-friendly address
+  // Trim whitespace
+  const trimmed = address.trim();
+
+  // Raw format: exactly 64 hex characters
+  if (/^[0-9a-fA-F]{64}$/.test(trimmed)) {
+    return { valid: true };
   }
 
-  return false;
+  // User-friendly format validation (strict)
+  // First char: E (mainnet bounceable), U (mainnet non-bounceable),
+  //             k (testnet bounceable), 0 (testnet non-bounceable)
+  // Second char: Q (uppercase confirms format)
+  // Total length: exactly 48 chars
+  // Charset: base64url (A-Z, a-z, 0-9, _, -)
+  if (!/^[EUk0]Q[A-Za-z0-9_-]{46}$/.test(trimmed)) {
+    // Check for common mistakes
+    if (trimmed.startsWith('0x')) {
+      return { valid: false, reason: 'Ethereum address format not supported' };
+    }
+    if (trimmed.length < 48) {
+      return { valid: false, reason: 'Address too short' };
+    }
+    if (trimmed.length > 66) {
+      return { valid: false, reason: 'Address too long' };
+    }
+    return { valid: false, reason: 'Invalid TON address format' };
+  }
+
+  // Additional validation: check for obviously invalid base64url patterns
+  // (e.g., all zeros or all same character is suspicious)
+  const body = trimmed.slice(2);
+  const uniqueChars = new Set(body).size;
+  if (uniqueChars < 5) {
+    return { valid: false, reason: 'Address appears to be invalid (low entropy)' };
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Simple validation wrapper for boolean result
+ */
+function isValidTonAddressSimple(address: string): boolean {
+  return isValidTonAddress(address).valid;
 }
 
 // Router
@@ -105,11 +147,12 @@ export const userRouter = new Hono<{
     const telegramId = c.get('telegramId');
 
     // Validate TON address format
-    if (!isValidTonAddress(walletAddress)) {
+    const validation = isValidTonAddress(walletAddress);
+    if (!validation.valid) {
       return c.json(
         {
           success: false,
-          error: 'Invalid TON wallet address format',
+          error: validation.reason || 'Invalid TON wallet address format',
           code: 'INVALID_WALLET_ADDRESS',
         },
         400

@@ -1,10 +1,18 @@
+import { memo, useCallback } from 'react';
 import { useUIStore } from '../stores/uiStore';
 
+type PageId = 'game' | 'leaderboard' | 'tasks' | 'airdrop' | 'profile';
+
 interface TabConfig {
-  id: 'game' | 'leaderboard' | 'tasks' | 'airdrop' | 'profile';
+  id: PageId;
   label: string;
   icon: React.ReactNode;
 }
+
+// Static style to avoid recreation on each render
+const ACTIVE_GLOW_STYLE = {
+  background: 'linear-gradient(135deg, var(--gradient-start), var(--gradient-accent))',
+} as const;
 
 const GameIcon = () => (
   <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
@@ -45,8 +53,14 @@ const tabs: TabConfig[] = [
   { id: 'profile', label: 'Profile', icon: <ProfileIcon /> },
 ];
 
-export function Navigation() {
-  const { currentPage, setPage } = useUIStore();
+export const Navigation = memo(function Navigation() {
+  // Granular selectors to prevent unnecessary re-renders
+  const currentPage = useUIStore((s) => s.currentPage);
+  const setPage = useUIStore((s) => s.setPage);
+
+  const handleTabClick = useCallback((tabId: PageId) => {
+    setPage(tabId);
+  }, [setPage]);
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 glass-nav safe-area-bottom z-50">
@@ -57,11 +71,14 @@ export function Navigation() {
           return (
             <button
               key={tab.id}
-              onClick={() => setPage(tab.id)}
+              onClick={() => handleTabClick(tab.id)}
+              aria-label={`Ir a ${tab.label}`}
+              aria-current={isActive ? 'page' : undefined}
               className={`
                 nav-item
                 flex flex-col items-center justify-center
                 w-full h-full py-2 px-1
+                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400/50 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent
                 ${isActive ? 'active' : ''}
               `}
             >
@@ -80,9 +97,7 @@ export function Navigation() {
                 {isActive && (
                   <div
                     className="absolute inset-0 rounded-xl blur-md opacity-50"
-                    style={{
-                      background: 'linear-gradient(135deg, var(--gradient-start), var(--gradient-accent))',
-                    }}
+                    style={ACTIVE_GLOW_STYLE}
                   />
                 )}
 
@@ -91,7 +106,7 @@ export function Navigation() {
                   className={`
                     relative z-10
                     transition-colors duration-300
-                    ${isActive ? 'text-white' : 'text-white/40'}
+                    ${isActive ? 'text-white' : 'text-white/60'}
                   `}
                 >
                   {tab.icon}
@@ -105,7 +120,7 @@ export function Navigation() {
                   transition-colors duration-300
                   ${isActive
                     ? 'text-gradient font-semibold'
-                    : 'text-white/40'
+                    : 'text-white/60'
                   }
                 `}
               >
@@ -117,4 +132,4 @@ export function Navigation() {
       </div>
     </nav>
   );
-}
+});

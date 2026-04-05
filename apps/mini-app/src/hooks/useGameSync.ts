@@ -37,25 +37,8 @@ export function useGameSync() {
     refetchOnWindowFocus: false,
   });
 
-  // Sync on mount - get server state and sync local team if exists
-  useEffect(() => {
-    if (serverState?.success && serverState.data) {
-      syncFromServer({
-        points: serverState.data.points,
-        energy: serverState.data.energy,
-        maxEnergy: serverState.data.maxEnergy,
-        level: serverState.data.level,
-      });
-
-      // If we have a local team but server doesn't, sync it
-      if (team && !serverState.data.team) {
-        console.log('[useGameSync] Local team exists but not on server, syncing:', team);
-        setTimeout(() => syncMutation.mutate(), 500);
-      }
-    }
-  }, [serverState, syncFromServer]); // eslint-disable-line react-hooks/exhaustive-deps
-
   // Full state sync mutation (includes team/department/streaks)
+  // Declared before useEffects that depend on it
   const syncMutation = useMutation({
     mutationFn: () => api.sync(initDataRaw!, {
       points,
@@ -82,6 +65,24 @@ export function useGameSync() {
     },
   });
 
+  // Sync on mount - get server state and sync local team if exists
+  useEffect(() => {
+    if (serverState?.success && serverState.data) {
+      syncFromServer({
+        points: serverState.data.points,
+        energy: serverState.data.energy,
+        maxEnergy: serverState.data.maxEnergy,
+        level: serverState.data.level,
+      });
+
+      // If we have a local team but server doesn't, sync it
+      if (team && !serverState.data.team) {
+        console.log('[useGameSync] Local team exists but not on server, syncing:', team);
+        setTimeout(() => syncMutation.mutate(), 500);
+      }
+    }
+  }, [serverState, syncFromServer, team, syncMutation]);
+
   // Tap mutation with optimistic update
   const tapMutation = useMutation({
     mutationFn: (taps: number) => api.tap(initDataRaw!, taps),
@@ -104,26 +105,36 @@ export function useGameSync() {
 
   // Sync team to backend when it changes
   useEffect(() => {
-    if (team && team !== lastSyncedTeamRef.current && initDataRaw) {
+    // Don't sync if initDataRaw is not available (not in Telegram) or already syncing
+    if (!initDataRaw || syncMutation.isPending) return;
+
+    if (team && team !== lastSyncedTeamRef.current) {
       console.log('[useGameSync] Team changed, syncing to backend:', team);
       // Small delay to ensure state is updated
       const timeout = setTimeout(() => {
-        syncMutation.mutate();
+        if (!syncMutation.isPending) {
+          syncMutation.mutate();
+        }
       }, 200);
       return () => clearTimeout(timeout);
     }
-  }, [team, initDataRaw]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [team, initDataRaw, syncMutation]);
 
-  // Also sync when department changes
+  // Also sync when department changes (debounced with team to avoid duplicate calls)
   useEffect(() => {
-    if (department && initDataRaw && team) {
+    // Don't sync if initDataRaw is not available or no team yet
+    if (!initDataRaw || !team || syncMutation.isPending) return;
+
+    if (department) {
       console.log('[useGameSync] Department set, syncing to backend:', department);
       const timeout = setTimeout(() => {
-        syncMutation.mutate();
-      }, 300);
+        if (!syncMutation.isPending) {
+          syncMutation.mutate();
+        }
+      }, 500); // Longer delay to avoid race with team sync
       return () => clearTimeout(timeout);
     }
-  }, [department, initDataRaw]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [department, initDataRaw, team, syncMutation]);
 
   // Periodic sync
   const syncTaps = useCallback(() => {

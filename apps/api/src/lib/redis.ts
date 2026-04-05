@@ -12,6 +12,7 @@ export interface RedisClient {
   // String operations
   get(key: string): Promise<string | null>;
   set(key: string, value: string, options?: { ex?: number }): Promise<'OK'>;
+  setnx(key: string, value: string, exSeconds?: number): Promise<boolean>;
   incr(key: string): Promise<number>;
   incrby(key: string, increment: number): Promise<number>;
   expire(key: string, seconds: number): Promise<number>;
@@ -95,6 +96,15 @@ export function createRedisClient(env: Env): RedisClient {
         return command<'OK'>('SETEX', key, options.ex, value);
       }
       return command<'OK'>('SET', key, value);
+    },
+    setnx: async (key, value, exSeconds) => {
+      // SET key value NX EX seconds - atomic set if not exists with expiry
+      if (exSeconds) {
+        const result = await command<string | null>('SET', key, value, 'NX', 'EX', exSeconds);
+        return result === 'OK';
+      }
+      const result = await command<number>('SETNX', key, value);
+      return result === 1;
     },
     incr: (key) => command<number>('INCR', key),
     incrby: (key, increment) => command<number>('INCRBY', key, increment),

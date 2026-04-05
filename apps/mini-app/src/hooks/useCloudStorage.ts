@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import { cloudStorage } from '@telegram-apps/sdk-react';
 
 interface GameData {
@@ -9,6 +9,34 @@ interface GameData {
   lastEnergyUpdate: number;
   totalTaps: number;
   lastSyncedAt: number;
+}
+
+/**
+ * Safely parse JSON with validation
+ */
+function parseGameData(json: string): GameData | null {
+  try {
+    const parsed = JSON.parse(json);
+    // Validate required fields exist and have correct types
+    if (
+      typeof parsed !== 'object' ||
+      parsed === null ||
+      typeof parsed.points !== 'number' ||
+      typeof parsed.energy !== 'number' ||
+      typeof parsed.maxEnergy !== 'number' ||
+      typeof parsed.level !== 'number' ||
+      typeof parsed.lastEnergyUpdate !== 'number' ||
+      typeof parsed.totalTaps !== 'number' ||
+      typeof parsed.lastSyncedAt !== 'number'
+    ) {
+      console.warn('[CloudStorage] Invalid game data structure');
+      return null;
+    }
+    return parsed as GameData;
+  } catch (error) {
+    console.error('[CloudStorage] JSON parse error:', error);
+    return null;
+  }
 }
 
 interface UseCloudStorageReturn {
@@ -46,11 +74,6 @@ export function useCloudStorage(): UseCloudStorageReturn {
   // Check if CloudStorage is available
   const isAvailable = cloudStorage.setItem.isAvailable();
 
-  // Load game data on mount
-  useEffect(() => {
-    loadGameData();
-  }, []);
-
   const loadGameData = useCallback(async (): Promise<GameData | null> => {
     if (!isAvailable) {
       console.log('[CloudStorage] Not available, using defaults');
@@ -64,11 +87,19 @@ export function useCloudStorage(): UseCloudStorageReturn {
       const stored = await cloudStorage.getItem(STORAGE_KEY);
 
       if (stored) {
-        const parsed = JSON.parse(stored) as GameData;
-        setGameData(parsed);
-        setLastSyncedAt(new Date(parsed.lastSyncedAt));
-        console.log('[CloudStorage] Loaded:', parsed);
-        return parsed;
+        const parsed = parseGameData(stored);
+        if (parsed) {
+          setGameData(parsed);
+          setLastSyncedAt(new Date(parsed.lastSyncedAt));
+          console.log('[CloudStorage] Loaded:', parsed);
+          return parsed;
+        }
+        // Invalid data, use defaults
+        console.warn('[CloudStorage] Corrupted data, using defaults');
+        await cloudStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_GAME_DATA));
+        setGameData(DEFAULT_GAME_DATA);
+        setLastSyncedAt(new Date());
+        return DEFAULT_GAME_DATA;
       } else {
         // First time user - save defaults
         await cloudStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_GAME_DATA));
@@ -85,6 +116,11 @@ export function useCloudStorage(): UseCloudStorageReturn {
       setIsLoading(false);
     }
   }, [isAvailable]);
+
+  // Load game data on mount
+  useEffect(() => {
+    loadGameData();
+  }, [loadGameData]);
 
   const saveGameData = useCallback(
     async (data: Partial<GameData>): Promise<boolean> => {
@@ -150,40 +186,56 @@ export function useCloudStorage(): UseCloudStorageReturn {
 // Debounced save hook for high-frequency updates (tapping)
 export function useDebouncedCloudSave(delayMs: number = 2000) {
   const [pendingData, setPendingData] = useState<Partial<GameData> | null>(null);
-  const [timeoutId, setTimeoutId] = useState<NodeJS.Timeout | null>(null);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pendingDataRef = useRef<Partial<GameData> | null>(null);
   const { saveGameData, isSyncing } = useCloudStorage();
+  const saveGameDataRef = useRef(saveGameData);
+
+  // Keep refs up to date
+  useEffect(() => {
+    pendingDataRef.current = pendingData;
+  }, [pendingData]);
+
+  useEffect(() => {
+    saveGameDataRef.current = saveGameData;
+  }, [saveGameData]);
 
   const queueSave = useCallback(
     (data: Partial<GameData>) => {
       // Merge with pending data
-      setPendingData((prev) => ({ ...prev, ...data }));
+      setPendingData((prev) => {
+        const merged = { ...prev, ...data };
+        pendingDataRef.current = merged;
+        return merged;
+      });
 
       // Clear existing timeout
-      if (timeoutId) {
-        clearTimeout(timeoutId);
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
       }
 
       // Set new timeout
-      const newTimeoutId = setTimeout(async () => {
-        if (pendingData) {
-          await saveGameData({ ...pendingData, ...data });
+      timeoutRef.current = setTimeout(async () => {
+        const currentPending = pendingDataRef.current;
+        if (currentPending) {
+          await saveGameDataRef.current(currentPending);
           setPendingData(null);
+          pendingDataRef.current = null;
         }
       }, delayMs);
-
-      setTimeoutId(newTimeoutId);
     },
-    [timeoutId, pendingData, saveGameData, delayMs]
+    [delayMs]
   );
 
   // Flush on unmount
   useEffect(() => {
     return () => {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
       }
-      if (pendingData) {
-        saveGameData(pendingData);
+      const currentPending = pendingDataRef.current;
+      if (currentPending) {
+        saveGameDataRef.current(currentPending);
       }
     };
   }, []);

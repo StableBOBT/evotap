@@ -1,7 +1,10 @@
+import { memo } from 'react';
 import { useGameStore } from '../stores/gameStore';
 
-export function EnergyBar() {
-  const { energy, maxEnergy } = useGameStore();
+export const EnergyBar = memo(function EnergyBar() {
+  // Use individual selectors to prevent unnecessary re-renders
+  const energy = useGameStore((s) => s.energy);
+  const maxEnergy = useGameStore((s) => s.maxEnergy);
   const percentage = (energy / maxEnergy) * 100;
   const isLow = percentage < 20;
   const isCritical = percentage < 10;
@@ -104,4 +107,4 @@ export function EnergyBar() {
       )}
     </div>
   );
-}
+});

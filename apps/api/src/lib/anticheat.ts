@@ -314,7 +314,7 @@ export async function addWarning(
 }
 
 /**
- * Ban a user
+ * Ban a user permanently
  */
 export async function banUser(
   redis: ReturnType<typeof createRedisClient>,
@@ -325,7 +325,7 @@ export async function banUser(
   await redis.set(key, JSON.stringify({
     reason,
     bannedAt: Date.now(),
-    permanent: false,
+    permanent: true,
   }));
 }
 
@@ -361,12 +361,25 @@ export async function isUserBanned(
     return { banned: false };
   }
 
-  const banInfo = JSON.parse(data as string);
-  return {
-    banned: true,
-    reason: banInfo.reason,
-    expiresAt: banInfo.expiresAt,
-  };
+  try {
+    const banInfo = JSON.parse(data as string);
+
+    // Safety check: if temp ban has expiresAt and it's in the past, clean up
+    // (Redis TTL should handle this, but this is defense-in-depth)
+    if (banInfo.expiresAt && Date.now() > banInfo.expiresAt) {
+      await redis.del(key);
+      return { banned: false };
+    }
+
+    return {
+      banned: true,
+      reason: banInfo.reason,
+      expiresAt: banInfo.expiresAt,
+    };
+  } catch {
+    console.error('[Anticheat] Failed to parse ban info');
+    return { banned: false };
+  }
 }
 
 /**
@@ -408,7 +421,13 @@ export async function getTapHistory(
 ): Promise<TapEvent[]> {
   const key = REDIS_KEYS.tapHistory(telegramId);
   const data = await redis.lrange(key, 0, -1);
-  return data.map(d => JSON.parse(d as string));
+  return data.map(d => {
+    try {
+      return JSON.parse(d as string);
+    } catch {
+      return { timestamp: 0, taps: 0 };
+    }
+  }).filter(e => e.timestamp > 0);
 }
 
 // =============================================================================
@@ -449,6 +468,48 @@ export async function registerDevice(
 // =============================================================================
 
 /**
+ * Check if user's device has too many accounts (Sybil detection)
+ */
+async function checkDeviceSybil(
+  redis: ReturnType<typeof createRedisClient>,
+  telegramId: number
+): Promise<{ suspicious: boolean; accountCount: number; reason?: string }> {
+  const fpKey = REDIS_KEYS.fingerprint(telegramId);
+  const fpData = await redis.get(fpKey);
+
+  if (!fpData) {
+    // No device registered - allow but track
+    return { suspicious: false, accountCount: 0 };
+  }
+
+  try {
+    const fp = JSON.parse(fpData as string);
+    const deviceHash = fp.hash;
+
+    if (!deviceHash) {
+      return { suspicious: false, accountCount: 0 };
+    }
+
+    // Check how many accounts use this device
+    const deviceKey = REDIS_KEYS.deviceUsers(deviceHash);
+    const accountCount = await redis.scard(deviceKey);
+
+    if (accountCount > MAX_ACCOUNTS_PER_DEVICE) {
+      return {
+        suspicious: true,
+        accountCount,
+        reason: `Device shared by ${accountCount} accounts (max ${MAX_ACCOUNTS_PER_DEVICE})`,
+      };
+    }
+
+    return { suspicious: false, accountCount };
+  } catch (error) {
+    console.error('[Anticheat] Error checking device Sybil:', error);
+    return { suspicious: false, accountCount: 0 };
+  }
+}
+
+/**
  * Anti-cheat middleware for tap endpoint
  */
 export async function antiCheatCheck(
@@ -469,12 +530,30 @@ export async function antiCheatCheck(
     return { allowed: false, reason: 'Emulators are not allowed' };
   }
 
-  // 3. Record tap and analyze behavior
+  // 3. Check for Sybil attack (multiple accounts on same device)
+  const sybilCheck = await checkDeviceSybil(redis, telegramId);
+  if (sybilCheck.suspicious) {
+    const { warnings, banned } = await addWarning(
+      redis,
+      telegramId,
+      sybilCheck.reason || 'Multiple accounts detected'
+    );
+    if (banned) {
+      return { allowed: false, reason: 'Too many accounts on this device' };
+    }
+    // Allow with warning for now, but flag
+    console.warn('[Anticheat] Sybil warning:', {
+      telegramId,
+      accountCount: sybilCheck.accountCount,
+    });
+  }
+
+  // 4. Record tap and analyze behavior
   await recordTapEvent(redis, telegramId, taps);
   const history = await getTapHistory(redis, telegramId);
   const analysis = analyzeTapBehavior(history);
 
-  // 4. Take action based on analysis
+  // 5. Take action based on analysis
   if (analysis.shouldBan) {
     await banUser(redis, telegramId, `Bot behavior detected: ${analysis.flags.join(', ')}`);
     return { allowed: false, reason: 'Suspicious activity detected' };

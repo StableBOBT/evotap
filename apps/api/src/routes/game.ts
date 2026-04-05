@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import type { Env, Variables } from '../types.js';
 import { GAME_CONFIG, calculateLevel } from '../types.js';
-import { tapRateLimitMiddleware } from '../middleware/index.js';
+import { tapRateLimitMiddleware, tapIpRateLimitMiddleware } from '../middleware/index.js';
 import {
   createRedisClient,
   REDIS_KEYS,
@@ -40,7 +40,7 @@ function calculateStreak(
   lastPlayDate: string | null,
   currentStreak: number
 ): { newStreak: number; isNewDay: boolean } {
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date().toISOString().split('T')[0]!;
 
   if (!lastPlayDate) {
     // First time playing
@@ -55,7 +55,7 @@ function calculateStreak(
   // Check if yesterday
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
-  const yesterdayStr = yesterday.toISOString().split('T')[0];
+  const yesterdayStr = yesterday.toISOString().split('T')[0]!;
 
   if (lastPlayDate === yesterdayStr) {
     // Consecutive day - increase streak
@@ -76,9 +76,21 @@ function calculateRegeneratedEnergy(
 ): { energy: number; lastRefill: string } {
   const now = Date.now();
   const lastRefill = new Date(lastRefillTime).getTime();
-  const elapsedSeconds = Math.floor((now - lastRefill) / 1000);
 
-  // Regenerate 1 energy per second
+  // Validate lastRefill is a valid timestamp
+  if (isNaN(lastRefill) || lastRefill <= 0) {
+    console.warn('[Game] Invalid lastRefillTime, using current time:', lastRefillTime);
+    return {
+      energy: currentEnergy,
+      lastRefill: new Date().toISOString(),
+    };
+  }
+
+  // Prevent negative elapsed time (clock drift, timezone issues)
+  const elapsedMs = Math.max(0, now - lastRefill);
+  const elapsedSeconds = Math.floor(elapsedMs / 1000);
+
+  // Regenerate energy based on elapsed time
   const regenAmount = elapsedSeconds * GAME_CONFIG.ENERGY_REGEN_RATE;
   const newEnergy = Math.min(maxEnergy, currentEnergy + regenAmount);
 
@@ -90,6 +102,7 @@ function calculateRegeneratedEnergy(
 
 /**
  * Validate nonce to prevent replay attacks
+ * Uses atomic SETNX to prevent race conditions
  */
 async function validateNonce(
   redis: ReturnType<typeof createRedisClient>,
@@ -98,15 +111,11 @@ async function validateNonce(
 ): Promise<boolean> {
   const key = `${REDIS_KEYS.userNonces(telegramId)}:${nonce}`;
 
-  // Check if nonce was already used
-  const exists = await redis.exists(key);
-  if (exists > 0) {
-    return false;
-  }
-
-  // Store nonce with 1-hour expiry
-  await redis.set(key, '1', { ex: 3600 });
-  return true;
+  // Atomic set-if-not-exists with 1-hour expiry
+  // Returns true only if the key was set (nonce is new)
+  // Returns false if key already existed (replay attack)
+  const wasSet = await redis.setnx(key, '1', 3600);
+  return wasSet;
 }
 
 // Router
@@ -115,7 +124,8 @@ export const gameRouter = new Hono<{
   Variables: Variables;
 }>()
   // POST /game/tap - Process taps
-  .post('/tap', tapRateLimitMiddleware, zValidator('json', TapRequestSchema), async (c) => {
+  // Both user-based and IP-based rate limiting to prevent multi-account abuse
+  .post('/tap', tapIpRateLimitMiddleware, tapRateLimitMiddleware, zValidator('json', TapRequestSchema), async (c) => {
     const { taps, nonce } = c.req.valid('json');
     const telegramId = c.get('telegramId');
 
@@ -189,7 +199,7 @@ export const gameRouter = new Hono<{
     );
 
     // Update state
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date().toISOString().split('T')[0]!;
     const updatedState: UserGameState = {
       ...state,
       points: newPoints,
@@ -335,7 +345,7 @@ export const gameRouter = new Hono<{
       });
     }
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date().toISOString().split('T')[0]!;
 
     // Update state with CloudStorage data
     const updatedState: UserGameState = {
@@ -344,10 +354,10 @@ export const gameRouter = new Hono<{
       energy: Math.min(energy, currentState.maxEnergy),
       totalTaps: Math.max(totalTaps, currentState.totalTaps),
       level: calculateLevel(Math.max(points, currentState.points)),
-      team: team || currentState.team,
-      department: department || currentState.department,
+      team: team ?? currentState.team,
+      department: department ?? currentState.department,
       streakDays: newStreak,
-      lastPlayDate: lastPlayDate || today,
+      lastPlayDate: lastPlayDate ?? today,
     };
 
     await saveUserState(redis, telegramId, updatedState);

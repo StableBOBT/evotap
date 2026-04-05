@@ -1,14 +1,28 @@
+import { memo, useMemo, useCallback } from 'react';
 import { useTonConnect } from '../hooks/useTonConnect';
 import { useTMA } from '../hooks/useTMA';
 
-export function Header() {
+function truncateAddress(address: string, start: number = 6, end: number = 4): string {
+  if (!address) return '';
+  return `${address.slice(0, start)}...${address.slice(-end)}`;
+}
+
+export const Header = memo(function Header() {
   const { user } = useTMA();
   const { isConnected, friendlyAddress, connect, disconnect } = useTonConnect();
 
-  const truncateAddress = (address: string) => {
-    if (!address) return '';
-    return `${address.slice(0, 6)}...${address.slice(-4)}`;
-  };
+  const displayAddress = useMemo(
+    () => truncateAddress(friendlyAddress || ''),
+    [friendlyAddress]
+  );
+
+  const handleWalletClick = useCallback(() => {
+    if (isConnected) {
+      disconnect();
+    } else {
+      connect();
+    }
+  }, [isConnected, connect, disconnect]);
 
   return (
     <header className="glass-header sticky top-0 z-50 safe-area-top">
@@ -48,11 +62,13 @@ export function Header() {
 
         {/* Wallet button */}
         <button
-          onClick={isConnected ? disconnect : connect}
+          onClick={handleWalletClick}
+          aria-label={isConnected ? `Wallet conectada: ${displayAddress}. Presiona para desconectar` : 'Conectar wallet TON'}
           className={`
             relative overflow-hidden
             px-4 py-2.5 rounded-xl text-sm font-semibold
             transition-all duration-300 ease-out
+            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400/50 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent
             ${isConnected
               ? 'glass border-green-500/30'
               : 'btn-gradient'
@@ -64,7 +80,7 @@ export function Header() {
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
               <span className="text-green-400 font-mono-game text-xs">
-                {truncateAddress(friendlyAddress || '')}
+                {displayAddress}
               </span>
             </div>
           ) : (
@@ -95,4 +111,4 @@ export function Header() {
       </div>
     </header>
   );
-}
+});

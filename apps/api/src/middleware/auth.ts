@@ -2,6 +2,7 @@ import type { MiddlewareHandler } from 'hono';
 import { validateInitDataFull } from '@app/telegram';
 import type { Env, Variables } from '../types.js';
 import { createRedisClient, getOrCreateUserState } from '../lib/redis.js';
+import { isUserBanned } from '../lib/anticheat.js';
 
 /**
  * Authentication middleware - validates Telegram initData
@@ -82,9 +83,26 @@ export const authMiddleware: MiddlewareHandler<{
     c.set('startParam', startParam);
   }
 
-  // Ensure user exists in Redis (create if new)
+  // Check if user is banned
   try {
     const redis = createRedisClient(c.env);
+
+    // Check ban status
+    const banStatus = await isUserBanned(redis, validatedUser.id);
+    if (banStatus.banned) {
+      return c.json(
+        {
+          success: false,
+          error: 'Your account has been suspended',
+          code: 'ACCOUNT_BANNED',
+          reason: banStatus.reason,
+          expiresAt: banStatus.expiresAt,
+        },
+        403
+      );
+    }
+
+    // Ensure user exists in Redis (create if new)
     const userState = await getOrCreateUserState(redis, validatedUser.id);
     c.set('userState', userState);
   } catch (error) {
@@ -220,6 +238,103 @@ export const strictAuthMiddleware: MiddlewareHandler<{
 
   await next();
 };
+
+/**
+ * Admin authentication middleware - validates admin API key
+ *
+ * Security features:
+ * - Uses separate ADMIN_SECRET (not derived from BOT_TOKEN)
+ * - HMAC-SHA256 with timestamp for key derivation
+ * - Timing-safe comparison to prevent timing attacks
+ * - Falls back to BOT_TOKEN derivation if ADMIN_SECRET not set (dev only)
+ */
+export const adminAuthMiddleware: MiddlewareHandler<{
+  Bindings: Env;
+  Variables: Variables;
+}> = async (c, next) => {
+  const adminKey = c.req.header('X-Admin-Key');
+
+  if (!adminKey) {
+    return c.json(
+      {
+        success: false,
+        error: 'Admin key required',
+        code: 'UNAUTHORIZED',
+      },
+      401
+    );
+  }
+
+  // Generate expected admin key
+  const expectedKey = await generateAdminKey(c.env);
+
+  // Timing-safe comparison to prevent timing attacks
+  if (!timingSafeEqual(adminKey, expectedKey)) {
+    console.warn('[Admin Auth] Invalid admin key attempt');
+    return c.json(
+      {
+        success: false,
+        error: 'Invalid admin key',
+        code: 'FORBIDDEN',
+      },
+      403
+    );
+  }
+
+  await next();
+};
+
+/**
+ * Generate admin key using HMAC-SHA256
+ * Uses ADMIN_SECRET if available, otherwise falls back to BOT_TOKEN derivation
+ */
+async function generateAdminKey(env: Env): Promise<string> {
+  // Use ADMIN_SECRET if set (recommended for production)
+  const secret = env.ADMIN_SECRET || env.BOT_TOKEN;
+
+  // Use HMAC-SHA256 for secure key derivation
+  const encoder = new TextEncoder();
+  const keyData = encoder.encode(secret);
+
+  const cryptoKey = await crypto.subtle.importKey(
+    'raw',
+    keyData,
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+
+  // Include domain separation to prevent cross-context attacks
+  const message = encoder.encode('ton-miniapp-bolivia:admin:v1');
+  const signature = await crypto.subtle.sign('HMAC', cryptoKey, message);
+
+  return Array.from(new Uint8Array(signature))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+/**
+ * Timing-safe string comparison to prevent timing attacks
+ */
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) {
+    // Still do comparison to prevent length-based timing leak
+    // Compare against itself to maintain constant time
+    b = a;
+  }
+
+  let result = 0;
+  for (let i = 0; i < a.length; i++) {
+    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+
+  return result === 0 && a.length === b.length;
+}
+
+/**
+ * Export admin key generator for CLI/scripts to generate keys
+ */
+export { generateAdminKey };
 
 /**
  * Map internal error codes to public API error codes

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, type MouseEvent, type TouchEvent } from 'react';
+import { memo, useCallback, useRef, useState, type MouseEvent, type TouchEvent, type KeyboardEvent } from 'react';
 import { useGameStore } from '../stores/gameStore';
 import { useUIStore } from '../stores/uiStore';
 import { useHaptics } from '../hooks/useHaptics';
@@ -37,9 +37,22 @@ const PARTICLE_COLORS = [
 
 const PARTICLE_COUNT = 8;
 
-export function TapButton() {
-  const { tap, energy, maxEnergy } = useGameStore();
-  const { addFloatingScore } = useUIStore();
+// Static style to avoid recreation on each render
+const BUTTON_STYLE = { touchAction: 'none' } as const;
+const EVO_TEXT_STYLE = {
+  background: 'linear-gradient(180deg, #FFFFFF 0%, #FFD700 50%, #FFA500 100%)',
+  WebkitBackgroundClip: 'text',
+  WebkitTextFillColor: 'transparent',
+  textShadow: '0 0 30px rgba(255, 215, 0, 0.5)',
+  filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))',
+} as const;
+
+export const TapButton = memo(function TapButton() {
+  // Granular selectors to prevent unnecessary re-renders
+  const tap = useGameStore((s) => s.tap);
+  const energy = useGameStore((s) => s.energy);
+  const maxEnergy = useGameStore((s) => s.maxEnergy);
+  const addFloatingScore = useUIStore((s) => s.addFloatingScore);
   const haptics = useHaptics();
 
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -131,30 +144,49 @@ export function TapButton() {
     [tap, isDisabled, haptics, addFloatingScore, createParticles, createRipple, createFloatingNumber]
   );
 
-  const handleMouseDown = (e: MouseEvent<HTMLButtonElement>) => {
+  const handleMouseDown = useCallback((e: MouseEvent<HTMLButtonElement>) => {
     setIsPressed(true);
     handleTap(e.clientX, e.clientY);
-  };
+  }, [handleTap]);
 
-  const handleMouseUp = () => {
+  const handleMouseUp = useCallback(() => {
     setIsPressed(false);
-  };
+  }, []);
 
-  const handleMouseLeave = () => {
+  const handleMouseLeave = useCallback(() => {
     setIsPressed(false);
-  };
+  }, []);
 
-  const handleTouchStart = (e: TouchEvent<HTMLButtonElement>) => {
+  const handleTouchStart = useCallback((e: TouchEvent<HTMLButtonElement>) => {
     e.preventDefault();
     setIsPressed(true);
     Array.from(e.touches).forEach((touch) => {
       handleTap(touch.clientX, touch.clientY);
     });
-  };
+  }, [handleTap]);
 
-  const handleTouchEnd = () => {
+  const handleTouchEnd = useCallback(() => {
     setIsPressed(false);
-  };
+  }, []);
+
+  // Keyboard support for accessibility
+  const handleKeyDown = useCallback((e: KeyboardEvent<HTMLButtonElement>) => {
+    if (e.key === ' ' || e.key === 'Enter') {
+      e.preventDefault();
+      setIsPressed(true);
+      // Use center of button for keyboard taps
+      if (buttonRef.current) {
+        const rect = buttonRef.current.getBoundingClientRect();
+        handleTap(rect.left + rect.width / 2, rect.top + rect.height / 2);
+      }
+    }
+  }, [handleTap]);
+
+  const handleKeyUp = useCallback((e: KeyboardEvent<HTMLButtonElement>) => {
+    if (e.key === ' ' || e.key === 'Enter') {
+      setIsPressed(false);
+    }
+  }, []);
 
   return (
     <button
@@ -164,6 +196,9 @@ export function TapButton() {
       onMouseLeave={handleMouseLeave}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
+      onKeyDown={handleKeyDown}
+      onKeyUp={handleKeyUp}
+      aria-label={isDisabled ? 'Sin energia - espera a recargar' : 'Toca para ganar puntos'}
       disabled={isDisabled}
       className={`
         tap-button
@@ -171,11 +206,12 @@ export function TapButton() {
         flex items-center justify-center
         select-none cursor-pointer
         transition-transform duration-100 ease-out
+        focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-yellow-400/50 focus-visible:ring-offset-4 focus-visible:ring-offset-transparent
         ${isPressed ? 'scale-90' : 'scale-100'}
         ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}
         ${isFullEnergy ? 'tap-button-full-energy' : ''}
       `}
-      style={{ touchAction: 'none' }}
+      style={BUTTON_STYLE}
     >
       {/* Outer glow layer */}
       <div className="tap-button-glow absolute -inset-4 rounded-full opacity-50" />
@@ -201,13 +237,7 @@ export function TapButton() {
             {/* EVO Logo - Clean typography */}
             <span
               className="text-5xl font-black tracking-tight select-none"
-              style={{
-                background: 'linear-gradient(180deg, #FFFFFF 0%, #FFD700 50%, #FFA500 100%)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                textShadow: '0 0 30px rgba(255, 215, 0, 0.5)',
-                filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))',
-              }}
+              style={EVO_TEXT_STYLE}
             >
               EVO
             </span>
@@ -301,4 +331,4 @@ export function TapButton() {
       </div>
     </button>
   );
-}
+});

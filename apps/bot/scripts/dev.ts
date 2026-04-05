@@ -11,6 +11,7 @@ const env: Env = {
   ENVIRONMENT: 'development',
   BOT_TOKEN: process.env.BOT_TOKEN || '',
   MINI_APP_URL: process.env.MINI_APP_URL || 'http://localhost:5173',
+  API_URL: process.env.API_URL || 'https://evotap-api-testnet.andeanlabs-58f.workers.dev',
   SUPABASE_URL: process.env.SUPABASE_URL || '',
   SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY || '',
 };
@@ -22,6 +23,7 @@ if (!env.BOT_TOKEN) {
 
 console.log('📦 Environment loaded');
 console.log(`   MINI_APP_URL: ${env.MINI_APP_URL}`);
+console.log(`   API_URL: ${env.API_URL}`);
 console.log(`   BOT_TOKEN: ${env.BOT_TOKEN.slice(0, 10)}...`);
 
 startPolling(env).catch((err) => {

@@ -28,6 +28,18 @@ const DeptParamSchema = z.object({
   dept: z.enum(['LP', 'SC', 'CB', 'OR', 'PT', 'CH', 'TJ', 'BE', 'PA']),
 });
 
+// Query schema for team/dept leaderboards
+const PaginationQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  offset: z.coerce.number().int().min(0).max(10000).default(0),
+});
+
+// Query schema for around-me endpoint
+const AroundMeQuerySchema = z.object({
+  period: z.enum(['global', 'daily', 'weekly', 'monthly']).default('global'),
+  count: z.coerce.number().int().min(1).max(50).default(5),
+});
+
 /**
  * Get the Redis key for a leaderboard based on period
  */
@@ -61,7 +73,8 @@ async function parseLeaderboardEntries(
   startRank: number,
   currentUserId?: number
 ): Promise<LeaderboardEntry[]> {
-  const entries: LeaderboardEntry[] = [];
+  // Parse results into structured data first
+  const parsed: Array<{ telegramId: number; score: number; rank: number }> = [];
 
   // Results come as [member1, score1, member2, score2, ...]
   for (let i = 0; i < results.length; i += 2) {
@@ -70,22 +83,34 @@ async function parseLeaderboardEntries(
 
     if (!memberStr || !scoreStr) continue;
 
-    const telegramId = parseInt(memberStr, 10);
-    const score = parseFloat(scoreStr);
-    const rank = startRank + i / 2 + 1;
-
-    // Load user state for team info only
-    const userState = await loadUserState(redis, telegramId);
-
-    entries.push({
-      rank,
-      points: Math.floor(score),
-      isCurrentUser: currentUserId === telegramId,
-      team: userState?.team || undefined,
+    parsed.push({
+      telegramId: parseInt(memberStr, 10),
+      score: parseFloat(scoreStr),
+      rank: startRank + i / 2 + 1,
     });
   }
 
-  return entries;
+  // Fetch all user states in parallel (fixes N+1 query)
+  const userStates = await Promise.all(
+    parsed.map(({ telegramId }) => loadUserState(redis, telegramId))
+  );
+
+  // Build entries with user state data
+  return parsed.map((item, index) => {
+    const userState = userStates[index];
+    const entry: LeaderboardEntry = {
+      rank: item.rank,
+      points: Math.floor(item.score),
+      isCurrentUser: currentUserId === item.telegramId,
+    };
+
+    // Only add team if it exists (exactOptionalPropertyTypes compatibility)
+    if (userState?.team) {
+      entry.team = userState.team;
+    }
+
+    return entry;
+  });
 }
 
 // Router
@@ -139,10 +164,9 @@ export const leaderboardRouter = new Hono<{
   })
 
   // GET /leaderboard/around-me - Get around user
-  .get('/around-me', async (c) => {
+  .get('/around-me', zValidator('query', AroundMeQuerySchema), async (c) => {
     const telegramId = c.get('telegramId');
-    const period = (c.req.query('period') || 'global') as string;
-    const count = parseInt(c.req.query('count') || '5', 10);
+    const { period, count } = c.req.valid('query');
 
     if (!telegramId) {
       return c.json({
@@ -198,10 +222,9 @@ export const leaderboardRouter = new Hono<{
   })
 
   // GET /leaderboard/team/:team - Get team leaderboard
-  .get('/team/:team', zValidator('param', TeamParamSchema), async (c) => {
+  .get('/team/:team', zValidator('param', TeamParamSchema), zValidator('query', PaginationQuerySchema), async (c) => {
     const { team } = c.req.valid('param');
-    const limit = parseInt(c.req.query('limit') || '50', 10);
-    const offset = parseInt(c.req.query('offset') || '0', 10);
+    const { limit, offset } = c.req.valid('query');
     const telegramId = c.get('telegramId');
 
     const redis = createRedisClient(c.env);
@@ -248,10 +271,9 @@ export const leaderboardRouter = new Hono<{
   })
 
   // GET /leaderboard/department/:dept - Get department leaderboard
-  .get('/department/:dept', zValidator('param', DeptParamSchema), async (c) => {
+  .get('/department/:dept', zValidator('param', DeptParamSchema), zValidator('query', PaginationQuerySchema), async (c) => {
     const { dept } = c.req.valid('param');
-    const limit = parseInt(c.req.query('limit') || '50', 10);
-    const offset = parseInt(c.req.query('offset') || '0', 10);
+    const { limit, offset } = c.req.valid('query');
     const telegramId = c.get('telegramId');
 
     const redis = createRedisClient(c.env);
@@ -300,9 +322,31 @@ export const leaderboardRouter = new Hono<{
     });
   })
 
-  // GET /leaderboard/teams - Get team standings
+  // GET /leaderboard/teams - Get team standings (cached for 5 minutes)
   .get('/teams', async (c) => {
     const redis = createRedisClient(c.env);
+    const cacheKey = 'cache:team-standings';
+    const CACHE_TTL = 300; // 5 minutes
+
+    // Try to get cached stats
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      try {
+        const teamStats = JSON.parse(cached);
+        // Set cache header for clients
+        c.header('Cache-Control', 'public, max-age=60');
+        return c.json({
+          success: true,
+          data: {
+            teams: teamStats,
+            cached: true,
+          },
+        });
+      } catch {
+        // Invalid cache, will recalculate
+      }
+    }
+
     const teams: TeamType[] = ['colla', 'camba', 'neutral'];
 
     const teamStats = await Promise.all(
@@ -312,8 +356,9 @@ export const leaderboardRouter = new Hono<{
         // Get player count
         const playerCount = await redis.zcard(key);
 
-        // Calculate total score
-        const topScores = await redis.zrevrange(key, 0, 999, true);
+        // Calculate total score - limit to top 500 for performance
+        // For exact totals, use incremental tracking in separate key
+        const topScores = await redis.zrevrange(key, 0, 499, true);
         let totalScore = 0;
         for (let i = 1; i < topScores.length; i += 2) {
           const scoreStr = topScores[i];
@@ -333,6 +378,12 @@ export const leaderboardRouter = new Hono<{
 
     // Sort by total score descending
     teamStats.sort((a, b) => b.totalScore - a.totalScore);
+
+    // Cache the result
+    await redis.set(cacheKey, JSON.stringify(teamStats), { ex: CACHE_TTL });
+
+    // Set cache header for clients
+    c.header('Cache-Control', 'public, max-age=60');
 
     return c.json({
       success: true,

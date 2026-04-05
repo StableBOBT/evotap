@@ -224,8 +224,10 @@ const INITIAL_MAX_ENERGY = 1000;
 const SYNC_DEBOUNCE_MS = 3000;
 const REFERRAL_BONUS = 5000; // Points for both referrer and referee
 const STREAK_BONUS_PER_DAY = 100; // Bonus points multiplier per streak day
+const ACHIEVEMENT_CHECK_INTERVAL = 10; // Check achievements every N taps
 
 let syncTimeout: NodeJS.Timeout | null = null;
+let tapsSinceAchievementCheck = 0; // Track taps for debounced achievement checks
 
 // =============================================================================
 // HELPER FUNCTIONS
@@ -264,6 +266,23 @@ function getYesterdayDate(): string {
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
   return yesterday.toISOString().split('T')[0];
+}
+
+/**
+ * Safely parse stored game data with validation
+ */
+function parseStoredData(json: string): Record<string, unknown> | null {
+  try {
+    const parsed = JSON.parse(json);
+    if (typeof parsed !== 'object' || parsed === null) {
+      console.warn('[GameStore] Invalid stored data format');
+      return null;
+    }
+    return parsed as Record<string, unknown>;
+  } catch (error) {
+    console.error('[GameStore] Failed to parse stored data:', error);
+    return null;
+  }
 }
 
 // =============================================================================
@@ -315,6 +334,13 @@ export const useGameStore = create<GameState>()((set, get) => ({
 
   // Initialize from CloudStorage with timeout
   initialize: async () => {
+    // Prevent duplicate initialization
+    const state = get();
+    if (state.isInitialized) {
+      console.log('[GameStore] Already initialized, skipping');
+      return;
+    }
+
     // Helper: wrap promise with timeout
     const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T | null> => {
       return Promise.race([
@@ -348,53 +374,65 @@ export const useGameStore = create<GameState>()((set, get) => ({
         : null;
 
       if (stored) {
-        const data = JSON.parse(stored);
-        const level = calculateLevel(data.totalTaps || 0);
-        const maxEnergy = calculateMaxEnergy(level);
+        const data = parseStoredData(stored);
+        if (data) {
+          const totalTaps = typeof data.totalTaps === 'number' ? data.totalTaps : 0;
+          const level = calculateLevel(totalTaps);
+          const maxEnergy = calculateMaxEnergy(level);
 
-        set({
-          points: data.points || 0,
-          energy: Math.min(data.energy || INITIAL_MAX_ENERGY, maxEnergy),
-          maxEnergy,
-          level,
-          totalTaps: data.totalTaps || 0,
-          lastEnergyUpdate: data.lastEnergyUpdate || Date.now(),
+          set({
+            points: typeof data.points === 'number' ? data.points : 0,
+            energy: Math.min(typeof data.energy === 'number' ? data.energy : INITIAL_MAX_ENERGY, maxEnergy),
+            maxEnergy,
+            level,
+            totalTaps,
+            lastEnergyUpdate: typeof data.lastEnergyUpdate === 'number' ? data.lastEnergyUpdate : Date.now(),
 
-          // Team
-          department: data.department || null,
-          team: data.team || null,
-          teamJoinedAt: data.teamJoinedAt || null,
-          detectedRegion: data.detectedRegion || null,
+            // Team
+            department: (data.department as DepartmentId) || null,
+            team: (data.team as TeamType) || null,
+            teamJoinedAt: typeof data.teamJoinedAt === 'number' ? data.teamJoinedAt : null,
+            detectedRegion: typeof data.detectedRegion === 'string' ? data.detectedRegion : null,
 
-          // Streak
-          currentStreak: data.currentStreak || 0,
-          longestStreak: data.longestStreak || 0,
-          lastPlayDate: data.lastPlayDate || null,
-          streakBonusCollected: data.streakBonusCollected || false,
+            // Streak
+            currentStreak: typeof data.currentStreak === 'number' ? data.currentStreak : 0,
+            longestStreak: typeof data.longestStreak === 'number' ? data.longestStreak : 0,
+            lastPlayDate: typeof data.lastPlayDate === 'string' ? data.lastPlayDate : null,
+            streakBonusCollected: data.streakBonusCollected === true,
 
-          // Referral
-          referralCode: data.referralCode || generateReferralCode(),
-          referredBy: data.referredBy || null,
-          referralCount: data.referralCount || 0,
-          referralEarnings: data.referralEarnings || 0,
+            // Referral
+            referralCode: typeof data.referralCode === 'string' ? data.referralCode : generateReferralCode(),
+            referredBy: typeof data.referredBy === 'string' ? data.referredBy : null,
+            referralCount: typeof data.referralCount === 'number' ? data.referralCount : 0,
+            referralEarnings: typeof data.referralEarnings === 'number' ? data.referralEarnings : 0,
 
-          // Achievements
-          unlockedAchievements: data.unlockedAchievements || [],
+            // Achievements
+            unlockedAchievements: Array.isArray(data.unlockedAchievements) ? data.unlockedAchievements as AchievementId[] : [],
 
-          // Wallet
-          walletConnected: data.walletConnected || false,
-          walletAddress: data.walletAddress || null,
+            // Wallet
+            walletConnected: data.walletConnected === true,
+            walletAddress: typeof data.walletAddress === 'string' ? data.walletAddress : null,
 
-          lastSyncedAt: data.lastSyncedAt || null,
-          isInitialized: true,
-        });
+            lastSyncedAt: typeof data.lastSyncedAt === 'number' ? data.lastSyncedAt : null,
+            isInitialized: true,
+          });
 
-        console.log('[GameStore] Loaded from CloudStorage');
+          console.log('[GameStore] Loaded from CloudStorage');
+        } else {
+          // Corrupted data - use defaults
+          console.warn('[GameStore] Corrupted stored data, using defaults');
+          set({ isInitialized: true, lastSyncedAt: Date.now() });
+          get().syncToCloud().catch((err) => {
+            console.error('[GameStore] Background sync failed:', err);
+          });
+        }
       } else {
         // First time or timeout - use defaults
         set({ isInitialized: true, lastSyncedAt: Date.now() });
         // Don't await sync on first load - do it in background
-        get().syncToCloud().catch(() => {});
+        get().syncToCloud().catch((err) => {
+          console.error('[GameStore] Initial sync failed:', err);
+        });
         console.log('[GameStore] Initialized new user');
       }
 
@@ -453,8 +491,12 @@ export const useGameStore = create<GameState>()((set, get) => ({
       pendingTaps: state.pendingTaps + 1, // Track pending taps for API sync
     });
 
-    // Check achievements
-    get().checkAchievements();
+    // Debounced achievement check - only every N taps to improve performance
+    tapsSinceAchievementCheck++;
+    if (tapsSinceAchievementCheck >= ACHIEVEMENT_CHECK_INTERVAL) {
+      tapsSinceAchievementCheck = 0;
+      get().checkAchievements();
+    }
 
     // Debounced sync to CloudStorage
     if (state.isCloudAvailable) {
@@ -462,7 +504,9 @@ export const useGameStore = create<GameState>()((set, get) => ({
         clearTimeout(syncTimeout);
       }
       syncTimeout = setTimeout(() => {
-        get().syncToCloud();
+        get().syncToCloud().catch((err) => {
+          console.error('[GameStore] Debounced sync failed:', err);
+        });
       }, SYNC_DEBOUNCE_MS);
     }
 
@@ -484,7 +528,9 @@ export const useGameStore = create<GameState>()((set, get) => ({
       });
 
       if (state.isCloudAvailable && energyToAdd >= 10) {
-        get().syncToCloud();
+        get().syncToCloud().catch((err) => {
+          console.error('[GameStore] Energy recharge sync failed:', err);
+        });
       }
     }
   },
@@ -502,7 +548,9 @@ export const useGameStore = create<GameState>()((set, get) => ({
 
     // Check team achievement
     get().checkAchievements();
-    get().syncToCloud();
+    get().syncToCloud().catch((err) => {
+      console.error('[GameStore] Department selection sync failed:', err);
+    });
   },
 
   // Select team directly (Colla vs Camba)
@@ -516,7 +564,9 @@ export const useGameStore = create<GameState>()((set, get) => ({
 
     // Check team achievement
     get().checkAchievements();
-    get().syncToCloud();
+    get().syncToCloud().catch((err) => {
+      console.error('[GameStore] Team selection sync failed:', err);
+    });
   },
 
   // Set detected region from IP/geolocation
@@ -555,7 +605,9 @@ export const useGameStore = create<GameState>()((set, get) => ({
       streakBonusCollected: true,
     });
 
-    get().syncToCloud();
+    get().syncToCloud().catch((err) => {
+      console.error('[GameStore] Streak bonus sync failed:', err);
+    });
     return bonus;
   },
 
@@ -573,7 +625,9 @@ export const useGameStore = create<GameState>()((set, get) => ({
       points: state.points + REFERRAL_BONUS,
     });
 
-    get().syncToCloud();
+    get().syncToCloud().catch((err) => {
+      console.error('[GameStore] Referral sync failed:', err);
+    });
   },
 
   // Add referral (when someone uses your code)
@@ -587,7 +641,9 @@ export const useGameStore = create<GameState>()((set, get) => ({
     });
 
     get().checkAchievements();
-    get().syncToCloud();
+    get().syncToCloud().catch((err) => {
+      console.error('[GameStore] Add referral sync failed:', err);
+    });
   },
 
   // Check and unlock achievements
@@ -685,14 +741,18 @@ export const useGameStore = create<GameState>()((set, get) => ({
     if (address) {
       get().checkAchievements();
     }
-    get().syncToCloud();
+    get().syncToCloud().catch((err) => {
+      console.error('[GameStore] Wallet connection sync failed:', err);
+    });
   },
 
   // Add points (for rewards, social tasks, etc.)
   addPoints: (amount: number) => {
     const state = get();
     set({ points: state.points + amount });
-    get().syncToCloud();
+    get().syncToCloud().catch((err) => {
+      console.error('[GameStore] Add points sync failed:', err);
+    });
   },
 
   // Sync to CloudStorage
@@ -837,12 +897,22 @@ export const useGameStore = create<GameState>()((set, get) => ({
   },
 }));
 
-// Auto-recharge hook
+// Auto-recharge hook with proper cleanup
 export function useEnergyRecharge() {
   const rechargeEnergy = useGameStore((s) => s.rechargeEnergy);
+  const { useEffect } = require('react');
 
-  if (typeof window !== 'undefined') {
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    // Initial recharge
     rechargeEnergy();
-    setInterval(rechargeEnergy, 60000);
-  }
+
+    // Set up interval with cleanup
+    const intervalId = setInterval(rechargeEnergy, 60000);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [rechargeEnergy]);
 }

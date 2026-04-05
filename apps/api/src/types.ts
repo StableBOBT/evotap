@@ -13,6 +13,10 @@ export interface Env {
   // Telegram
   BOT_TOKEN: string;
 
+  // Admin authentication (optional, falls back to BOT_TOKEN derivation if not set)
+  // IMPORTANT: Set this to a strong random 64-char hex string in production
+  ADMIN_SECRET?: string;
+
   // Supabase
   SUPABASE_URL: string;
   SUPABASE_ANON_KEY: string;

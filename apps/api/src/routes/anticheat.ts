@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import type { Env, Variables } from '../types.js';
 import { createRedisClient, getOrCreateUserState } from '../lib/redis.js';
+import { adminAuthMiddleware } from '../middleware/index.js';
 import {
   registerDevice,
   calculateTrustScore,
@@ -15,6 +16,8 @@ import {
   banUser,
   unbanUser,
   addWarning,
+  getTapHistory,
+  analyzeTapBehavior,
   type DeviceFingerprint,
 } from '../lib/anticheat.js';
 
@@ -75,21 +78,44 @@ export const anticheatRouter = new Hono<{
     // Get device fingerprint hash
     const fpKey = `anticheat:fp:${telegramId}`;
     const fpData = await redis.get(fpKey);
-    const deviceHash = fpData ? JSON.parse(fpData as string).hash : 'unknown';
+    let deviceHash = 'unknown';
+    if (fpData) {
+      try {
+        deviceHash = JSON.parse(fpData as string).hash || 'unknown';
+      } catch {
+        console.error('[Anticheat] Failed to parse device fingerprint');
+      }
+    }
 
-    // Calculate days played (approximation based on totalTaps and estimated taps/day)
-    const estimatedDaysPlayed = Math.ceil(userState.totalTaps / 500) || 1;
+    // Get actual behavior score from tap history analysis
+    const tapHistory = await getTapHistory(redis, telegramId);
+    const behaviorAnalysis = analyzeTapBehavior(tapHistory);
+    const actualBehaviorScore = behaviorAnalysis.score;
+
+    // Calculate days played based on unique play dates
+    // For now, use approximation from totalTaps (avg 500 taps/day)
+    const estimatedDaysPlayed = Math.max(1, Math.ceil(userState.totalTaps / 500));
+
+    // Track session count from tap history
+    // Each gap > 30 min in tap history = new session
+    let sessionCount = 1;
+    for (let i = 1; i < tapHistory.length; i++) {
+      const gap = tapHistory[i].timestamp - tapHistory[i - 1].timestamp;
+      if (gap > 30 * 60 * 1000) { // 30 minutes
+        sessionCount++;
+      }
+    }
 
     const trustScore = await calculateTrustScore(redis, {
       telegramId,
       accountCreatedAt: new Date(userState.createdAt),
       isPremium: telegramUser?.is_premium || false,
-      behaviorScore: 70, // Default until we have more data
+      behaviorScore: actualBehaviorScore,
       deviceHash,
       referralCount: userState.referralCount || 0,
       referredByTrusted: false, // Would need to check referrer's trust
       walletConnected: !!userState.walletAddress,
-      totalSessions: 1, // Would need session tracking
+      totalSessions: sessionCount,
       totalDaysPlayed: estimatedDaysPlayed,
     });
 
@@ -100,6 +126,8 @@ export const anticheatRouter = new Hono<{
         factors: trustScore.factors,
         isEligibleForAirdrop: trustScore.isEligibleForAirdrop,
         airdropMultiplier: trustScore.airdropMultiplier,
+        behaviorScore: actualBehaviorScore,
+        behaviorFlags: behaviorAnalysis.flags,
       },
     });
   })
@@ -118,12 +146,10 @@ export const anticheatRouter = new Hono<{
   })
 
   // POST /anticheat/admin/ban - Ban a user (admin only)
-  .post('/admin/ban', zValidator('json', BanUserSchema), async (c) => {
+  .post('/admin/ban', adminAuthMiddleware, zValidator('json', BanUserSchema), async (c) => {
     const { telegramId, reason, duration } = c.req.valid('json');
     const adminId = c.get('telegramId');
 
-    // TODO: Add admin verification here
-    // For now, just log who is banning
     console.log(`[Admin] User ${adminId} banning ${telegramId}: ${reason}`);
 
     const redis = createRedisClient(c.env);
@@ -153,7 +179,7 @@ export const anticheatRouter = new Hono<{
   })
 
   // POST /anticheat/admin/unban - Unban a user (admin only)
-  .post('/admin/unban', zValidator('json', z.object({ telegramId: z.number() })), async (c) => {
+  .post('/admin/unban', adminAuthMiddleware, zValidator('json', z.object({ telegramId: z.number() })), async (c) => {
     const { telegramId } = c.req.valid('json');
     const adminId = c.get('telegramId');
 

@@ -1,6 +1,14 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, memo } from 'react';
 import { ACHIEVEMENTS, useGameStore, type AchievementId } from '../stores/gameStore';
 import { useHaptics } from '../hooks/useHaptics';
+
+// Pre-generated particle data (stable reference)
+const PARTICLE_DATA = Array.from({ length: 8 }, (_, i) => ({
+  id: i,
+  background: `hsl(${i * 45}, 70%, 60%)`,
+  animationDelay: `${i * 0.1}s`,
+  angle: `${i * 45}deg`,
+}));
 
 interface NotificationState {
   achievement: (typeof ACHIEVEMENTS)[AchievementId] | null;
@@ -11,7 +19,7 @@ interface NotificationState {
 const AUTO_DISMISS_MS = 3000;
 const EXIT_ANIMATION_MS = 300;
 
-export function AchievementNotification() {
+export const AchievementNotification = memo(function AchievementNotification() {
   const pendingAchievements = useGameStore((s) => s.pendingAchievements);
   const clearPendingAchievements = useGameStore((s) => s.clearPendingAchievements);
   const haptics = useHaptics();
@@ -50,17 +58,7 @@ export function AchievementNotification() {
     }
   }, [queue, notification.isVisible, haptics]);
 
-  // Auto-dismiss timer
-  useEffect(() => {
-    if (!notification.isVisible || notification.isExiting) return;
-
-    const timer = setTimeout(() => {
-      dismissNotification();
-    }, AUTO_DISMISS_MS);
-
-    return () => clearTimeout(timer);
-  }, [notification.isVisible, notification.isExiting]);
-
+  // Dismiss notification with exit animation
   const dismissNotification = useCallback(() => {
     setNotification((prev) => ({ ...prev, isExiting: true }));
 
@@ -72,6 +70,17 @@ export function AchievementNotification() {
       });
     }, EXIT_ANIMATION_MS);
   }, []);
+
+  // Auto-dismiss timer
+  useEffect(() => {
+    if (!notification.isVisible || notification.isExiting) return;
+
+    const timer = setTimeout(() => {
+      dismissNotification();
+    }, AUTO_DISMISS_MS);
+
+    return () => clearTimeout(timer);
+  }, [notification.isVisible, notification.isExiting, dismissNotification]);
 
   const handleTap = useCallback(() => {
     if (notification.isVisible && !notification.isExiting) {
@@ -123,14 +132,14 @@ export function AchievementNotification() {
 
         {/* Particle burst effect */}
         <div className="absolute inset-0 pointer-events-none">
-          {[...Array(8)].map((_, i) => (
+          {PARTICLE_DATA.map((particle) => (
             <div
-              key={i}
+              key={particle.id}
               className="absolute left-1/2 top-1/2 w-2 h-2 rounded-full animate-achievement-particle"
               style={{
-                background: `hsl(${i * 45}, 70%, 60%)`,
-                animationDelay: `${i * 0.1}s`,
-                '--particle-angle': `${i * 45}deg`,
+                background: particle.background,
+                animationDelay: particle.animationDelay,
+                '--particle-angle': particle.angle,
               } as React.CSSProperties}
             />
           ))}
@@ -297,4 +306,4 @@ export function AchievementNotification() {
       `}</style>
     </div>
   );
-}
+});

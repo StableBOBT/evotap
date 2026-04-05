@@ -1,10 +1,16 @@
+import { memo, useMemo, useCallback } from 'react';
 import { useTMA } from '../hooks/useTMA';
 import { useTonConnect } from '../hooks/useTonConnect';
 import { useGameStore, DEPARTMENTS, ACHIEVEMENTS, AchievementId, DepartmentId } from '../stores/gameStore';
 import { useUIStore } from '../stores/uiStore';
 import { useRegionDetection } from '../hooks/useTeamBattle';
 
-export function ProfilePage() {
+function truncateAddress(address: string): string {
+  if (!address) return '';
+  return `${address.slice(0, 10)}...${address.slice(-8)}`;
+}
+
+export const ProfilePage = memo(function ProfilePage() {
   const { user, notificationSuccess } = useTMA();
   const { isConnected, friendlyAddress, connect, disconnect } = useTonConnect();
   const { setPage } = useUIStore();
@@ -24,12 +30,12 @@ export function ProfilePage() {
     unlockedAchievements,
   } = useGameStore();
 
-  const truncateAddress = (address: string) => {
-    if (!address) return '';
-    return `${address.slice(0, 10)}...${address.slice(-8)}`;
-  };
+  const displayAddress = useMemo(
+    () => truncateAddress(friendlyAddress || ''),
+    [friendlyAddress]
+  );
 
-  const copyReferralLink = async () => {
+  const copyReferralLink = useCallback(async () => {
     const link = `t.me/EVOtapBot?start=${referralCode}`;
     try {
       await navigator.clipboard.writeText(link);
@@ -37,9 +43,13 @@ export function ProfilePage() {
     } catch (error) {
       console.error('Failed to copy:', error);
     }
-  };
+  }, [referralCode, notificationSuccess]);
 
-  const getTeamInfo = () => {
+  const goToGame = useCallback(() => {
+    setPage('game');
+  }, [setPage]);
+
+  const teamInfo = useMemo(() => {
     if (!team) return null;
 
     const teamEmojis: Record<string, string> = {
@@ -58,24 +68,21 @@ export function ProfilePage() {
       emoji: teamEmojis[team],
       name: teamNames[team],
     };
-  };
+  }, [team]);
 
-  const getDepartmentInfo = () => {
+  const departmentInfo = useMemo(() => {
     if (!department) return null;
     return DEPARTMENTS[department as DepartmentId];
-  };
+  }, [department]);
 
-  const stats = [
+  const stats = useMemo(() => [
     { label: 'Puntos', value: points.toLocaleString(), icon: '💰' },
     { label: 'Nivel', value: level.toString(), icon: '⭐' },
     { label: 'Total Taps', value: totalTaps.toLocaleString(), icon: '👆' },
     { label: 'Racha Actual', value: currentStreak.toString(), icon: '🔥' },
     { label: 'Mejor Racha', value: longestStreak.toString(), icon: '🏆' },
     { label: 'Referidos', value: referralCount.toString(), icon: '👥' },
-  ];
-
-  const teamInfo = getTeamInfo();
-  const departmentInfo = getDepartmentInfo();
+  ], [points, level, totalTaps, currentStreak, longestStreak, referralCount]);
 
   return (
     <div className="flex flex-col flex-1 p-4 pb-24 overflow-y-auto">
@@ -144,8 +151,9 @@ export function ProfilePage() {
               Aun no has elegido tu equipo
             </p>
             <button
-              onClick={() => setPage('game')}
-              className="w-full py-3 bg-gradient-to-r from-yellow-500 to-red-500 text-white rounded-xl font-medium"
+              onClick={goToGame}
+              aria-label="Ir a la pagina de juego para elegir tu equipo"
+              className="w-full py-3 bg-gradient-to-r from-yellow-500 to-red-500 text-white rounded-xl font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400/50"
             >
               Elegir Equipo
             </button>
@@ -222,7 +230,8 @@ export function ProfilePage() {
 
         <button
           onClick={copyReferralLink}
-          className="w-full py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-xl font-medium mb-3"
+          aria-label={`Copiar link de invitacion con codigo ${referralCode}`}
+          className="w-full py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-xl font-medium mb-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/50"
         >
           Copiar Link de Invitacion
         </button>
@@ -246,11 +255,12 @@ export function ProfilePage() {
           <div>
             <p className="text-sm text-green-400 mb-2">Conectada</p>
             <p className="text-white font-mono text-sm bg-white/5 rounded-xl px-4 py-3 mb-3 border border-white/10">
-              {truncateAddress(friendlyAddress || '')}
+              {displayAddress}
             </p>
             <button
               onClick={disconnect}
-              className="w-full py-3 bg-red-500/20 text-red-400 rounded-xl text-sm border border-red-500/30"
+              aria-label="Desconectar wallet TON"
+              className="w-full py-3 bg-red-500/20 text-red-400 rounded-xl text-sm border border-red-500/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/50"
             >
               Desconectar Wallet
             </button>
@@ -262,7 +272,8 @@ export function ProfilePage() {
             </p>
             <button
               onClick={connect}
-              className="w-full py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl font-medium"
+              aria-label="Conectar wallet TON para recibir airdrops y recompensas"
+              className="w-full py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/50"
             >
               Conectar TON Wallet
             </button>
@@ -324,4 +335,4 @@ export function ProfilePage() {
       </div>
     </div>
   );
-}
+});

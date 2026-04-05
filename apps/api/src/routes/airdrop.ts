@@ -88,13 +88,17 @@ export const airdropRouter = new Hono<{
       let userAllocation = null;
 
       if (snapshotData) {
-        const snapshot: MerkleSnapshot = JSON.parse(snapshotData);
-        const userEntry = snapshot.leaves.find(e => e.telegramId === telegramId);
-        if (userEntry) {
-          userAllocation = {
-            amount: userEntry.amount,
-            trustScore: userEntry.trustScore,
-          };
+        try {
+          const snapshot: MerkleSnapshot = JSON.parse(snapshotData);
+          const userEntry = snapshot.leaves.find(e => e.telegramId === telegramId);
+          if (userEntry) {
+            userAllocation = {
+              amount: userEntry.amount,
+              trustScore: userEntry.trustScore,
+            };
+          }
+        } catch (parseError) {
+          console.error('[Airdrop] Failed to parse snapshot data:', parseError);
         }
       }
 

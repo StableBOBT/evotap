@@ -2,11 +2,14 @@ export {
   authMiddleware,
   optionalAuthMiddleware,
   strictAuthMiddleware,
+  adminAuthMiddleware,
+  generateAdminKey,
 } from './auth.js';
 
 export {
   createRateLimitMiddleware,
   tapRateLimitMiddleware,
+  tapIpRateLimitMiddleware,
   tapRateLimit,
   burstRateLimit,
   apiRateLimit,
@@ -14,6 +17,8 @@ export {
   referralRateLimit,
   claimRateLimit,
   ipRateLimitMiddleware,
+  adminRateLimitMiddleware,
+  adminSensitiveRateLimitMiddleware,
   RATE_LIMIT_CONFIGS,
 } from './rateLimit.js';
 

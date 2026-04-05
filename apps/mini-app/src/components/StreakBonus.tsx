@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo, memo } from 'react';
 import { useGameStore, getEvoPhrase } from '../stores/gameStore';
 import { useHaptics } from '../hooks/useHaptics';
 
@@ -10,12 +10,40 @@ interface FlameParticle {
   size: number;
 }
 
-export function StreakBonus() {
-  const {
-    currentStreak,
-    streakBonusCollected,
-    collectStreakBonus,
-  } = useGameStore();
+// Static tier colors to avoid recreation
+const TIER_COLORS = {
+  basic: 'from-orange-500/20 to-red-500/20',
+  common: 'from-orange-500/30 to-red-500/30',
+  rare: 'from-orange-500/40 to-red-600/40',
+  epic: 'from-orange-400/50 to-red-500/50',
+  legendary: 'from-yellow-400/60 to-red-600/60',
+} as const;
+
+const TIER_BORDER_COLORS = {
+  basic: 'border-orange-500/30',
+  common: 'border-orange-500/40',
+  rare: 'border-orange-400/50',
+  epic: 'border-orange-400/60',
+  legendary: 'border-yellow-400/70',
+} as const;
+
+// Pre-generated flame particles (stable reference)
+const FLAME_PARTICLES: FlameParticle[] = Array.from({ length: 12 }, (_, i) => ({
+  id: i,
+  x: 20 + (i * 5) % 60,
+  delay: (i * 0.17) % 2,
+  duration: 1 + (i * 0.125) % 1.5,
+  size: 4 + (i * 0.67) % 8,
+}));
+
+// Confetti emojis
+const CONFETTI_EMOJIS = ['🔥', '✨', '⭐', '💫'];
+
+export const StreakBonus = memo(function StreakBonus() {
+  // Granular selectors
+  const currentStreak = useGameStore((s) => s.currentStreak);
+  const streakBonusCollected = useGameStore((s) => s.streakBonusCollected);
+  const collectStreakBonus = useGameStore((s) => s.collectStreakBonus);
 
   const haptics = useHaptics();
   const [isCollecting, setIsCollecting] = useState(false);
@@ -25,14 +53,8 @@ export function StreakBonus() {
   const bonusAvailable = currentStreak * 100;
   const canClaim = !streakBonusCollected && currentStreak > 0;
 
-  // Generate flame particles for animation
-  const flameParticles: FlameParticle[] = Array.from({ length: 12 }, (_, i) => ({
-    id: i,
-    x: 20 + Math.random() * 60,
-    delay: Math.random() * 2,
-    duration: 1 + Math.random() * 1.5,
-    size: 4 + Math.random() * 8,
-  }));
+  // Memoized Evo phrase (only changes when streak changes)
+  const evoPhrase = useMemo(() => getEvoPhrase('streak'), [currentStreak]);
 
   const handleClaim = useCallback(async () => {
     if (!canClaim || isCollecting) return;
@@ -60,34 +82,26 @@ export function StreakBonus() {
     }
   }, [canClaim, isCollecting, collectStreakBonus, haptics]);
 
-  const evoPhrase = getEvoPhrase('streak');
-
-  // Get streak tier for visual intensity
-  const getStreakTier = () => {
+  // Memoized streak tier
+  const streakTier = useMemo(() => {
     if (currentStreak >= 30) return 'legendary';
     if (currentStreak >= 14) return 'epic';
     if (currentStreak >= 7) return 'rare';
     if (currentStreak >= 3) return 'common';
     return 'basic';
-  };
+  }, [currentStreak]);
 
-  const streakTier = getStreakTier();
-
-  const tierColors = {
-    basic: 'from-orange-500/20 to-red-500/20',
-    common: 'from-orange-500/30 to-red-500/30',
-    rare: 'from-orange-500/40 to-red-600/40',
-    epic: 'from-orange-400/50 to-red-500/50',
-    legendary: 'from-yellow-400/60 to-red-600/60',
-  };
-
-  const tierBorderColors = {
-    basic: 'border-orange-500/30',
-    common: 'border-orange-500/40',
-    rare: 'border-orange-400/50',
-    epic: 'border-orange-400/60',
-    legendary: 'border-yellow-400/70',
-  };
+  // Memoized confetti particles (only when showing success)
+  const confettiParticles = useMemo(() => {
+    if (!showSuccess) return [];
+    return Array.from({ length: 20 }, (_, i) => ({
+      id: i,
+      left: `${(i * 5) % 100}%`,
+      delay: `${(i * 0.025)}s`,
+      duration: `${1 + (i * 0.05) % 1}s`,
+      emoji: CONFETTI_EMOJIS[i % 4],
+    }));
+  }, [showSuccess]);
 
   return (
     <div className="w-full max-w-sm px-4">
@@ -95,13 +109,13 @@ export function StreakBonus() {
       <div
         className={`
           glass relative overflow-hidden
-          border ${tierBorderColors[streakTier]}
-          bg-gradient-to-br ${tierColors[streakTier]}
+          border ${TIER_BORDER_COLORS[streakTier]}
+          bg-gradient-to-br ${TIER_COLORS[streakTier]}
         `}
       >
         {/* Animated flame background */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          {flameParticles.map((particle) => (
+          {FLAME_PARTICLES.map((particle) => (
             <div
               key={particle.id}
               className="absolute rounded-full blur-sm animate-flame"
@@ -275,18 +289,18 @@ export function StreakBonus() {
         {showSuccess && (
           <div className="absolute inset-0 pointer-events-none overflow-hidden">
             {/* Celebration particles */}
-            {[...Array(20)].map((_, i) => (
+            {confettiParticles.map((particle) => (
               <div
-                key={i}
+                key={particle.id}
                 className="absolute animate-confetti"
                 style={{
-                  left: `${Math.random() * 100}%`,
+                  left: particle.left,
                   top: '-10%',
-                  animationDelay: `${Math.random() * 0.5}s`,
-                  animationDuration: `${1 + Math.random()}s`,
+                  animationDelay: particle.delay,
+                  animationDuration: particle.duration,
                 }}
               >
-                {['🔥', '✨', '⭐', '💫'][Math.floor(Math.random() * 4)]}
+                {particle.emoji}
               </div>
             ))}
           </div>
@@ -347,4 +361,4 @@ export function StreakBonus() {
       `}</style>
     </div>
   );
-}
+});
