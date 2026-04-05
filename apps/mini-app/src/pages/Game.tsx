@@ -102,6 +102,9 @@ export function GamePage() {
     log('Render state:', { isInitialized, team, isSyncing, isApiSyncing });
   }, [isInitialized, team, isSyncing, isApiSyncing]);
 
+  // Low energy warning - must be BEFORE early returns (hooks rule)
+  const isLowEnergy = useMemo(() => energy < maxEnergy * 0.1, [energy, maxEnergy]);
+
   // Loading state - only show briefly on initial mount
   if (!isInitialized) {
     log('Showing loading spinner - isInitialized:', isInitialized);
@@ -130,9 +133,6 @@ export function GamePage() {
 
   // Main game - user has selected team
   log('Showing main game - team:', team);
-
-  // Low energy warning phrase (memoized)
-  const isLowEnergy = useMemo(() => energy < maxEnergy * 0.1, [energy, maxEnergy]);
 
   return (
     <div className="flex flex-col items-center justify-center flex-1 px-4 gap-4">
