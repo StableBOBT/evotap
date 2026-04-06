@@ -260,13 +260,13 @@ export const gameRouter = new Hono<{
       success: true,
       data: {
         pointsEarned,
-        newTotal: newPoints,
+        score: newPoints,
         energy: newEnergy,
+        maxEnergy: state.maxEnergy,
         level: newLevel,
-        levelUp,
+        leveledUp: levelUp,
         streakDays: newStreak,
         isNewDay,
-        ...(levelUp && { newLevel }),
       },
     });
   })

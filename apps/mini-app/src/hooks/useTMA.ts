@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import {
   useLaunchParams,
   useSignal,
@@ -144,34 +144,43 @@ export function useTMA(): UseTMAReturn {
       }
     : null;
 
-  // Get raw init data string for API auth - memoized for stability
-  const initDataRaw = useMemo(() => {
-    // Try multiple sources in order of reliability
-    let raw: string | null = null;
+  // Get raw init data string for API auth - refreshed periodically
+  // Telegram initData can be refreshed by the SDK, so we poll for updates
+  const [initDataRaw, setInitDataRaw] = useState<string | null>(null);
 
-    // Source 1: launchParams (most reliable after SDK init)
-    if (launchParams?.initDataRaw) {
-      raw = String(launchParams.initDataRaw);
-      log('initDataRaw from launchParams:', `${raw.slice(0, 50)}...`);
-      return raw;
+  useEffect(() => {
+    const readInitData = (): string | null => {
+      // Source 1: launchParams (most reliable after SDK init)
+      if (launchParams?.initDataRaw) {
+        return String(launchParams.initDataRaw);
+      }
+
+      // Source 2: window.Telegram.WebApp (fallback, may be refreshed)
+      if (typeof window !== 'undefined' && window.Telegram?.WebApp?.initData) {
+        return window.Telegram.WebApp.initData;
+      }
+
+      return null;
+    };
+
+    // Read immediately
+    const initial = readInitData();
+    if (initial) {
+      log('initDataRaw set:', `${initial.slice(0, 50)}...`);
+      setInitDataRaw(initial);
     }
 
-    // Source 2: window.Telegram.WebApp (fallback)
-    if (typeof window !== 'undefined' && window.Telegram?.WebApp?.initData) {
-      raw = window.Telegram.WebApp.initData;
-      log('initDataRaw from Telegram.WebApp:', `${raw.slice(0, 50)}...`);
-      return raw;
-    }
+    // Poll every 2 minutes to catch refreshed initData (expires at 5 min)
+    const interval = setInterval(() => {
+      const refreshed = readInitData();
+      if (refreshed && refreshed !== initDataRaw) {
+        log('initDataRaw refreshed');
+        setInitDataRaw(refreshed);
+      }
+    }, 120_000);
 
-    // Source 3: Check if SDK was initialized but data not in launchParams yet
-    if (initDataState?.user?.id) {
-      // SDK has user data but not raw string - this is a timing issue
-      log('⚠️ initDataState has user but no initDataRaw - SDK timing issue');
-    }
-
-    log('⚠️ initDataRaw is null from all sources');
-    return null;
-  }, [launchParams?.initDataRaw, initDataState]);
+    return () => clearInterval(interval);
+  }, [launchParams?.initDataRaw]);
 
   // Haptic feedback helpers
   const impactLight = useCallback(() => {

@@ -48,6 +48,7 @@ export function useGameSync() {
     onSuccess: (response) => {
       console.log('[useGameSync] Tap sync success:', response);
       isTapSyncingRef.current = false;
+      clearPendingTaps(); // Clear ONLY after successful API response
       if (response.success && response.data) {
         syncFromServer({
           points: response.data.score,
@@ -60,6 +61,7 @@ export function useGameSync() {
     onError: (error) => {
       isTapSyncingRef.current = false;
       console.error('[useGameSync] Tap sync failed:', error);
+      // Don't clear pending taps - they will be retried on next sync
       queryClient.invalidateQueries({ queryKey: ['gameState'] });
     },
     onMutate: () => {
@@ -164,10 +166,9 @@ export function useGameSync() {
 
     const taps = useGameStore.getState().pendingTaps;
     if (taps >= MIN_TAPS_TO_SYNC) {
-      clearPendingTaps();
       tapMutate({ taps, auth });
     }
-  }, [clearPendingTaps, tapMutate]); // Only stable refs
+  }, [tapMutate]); // Only stable refs
 
   // Keep initDataRef current AND sync when auth becomes available
   useEffect(() => {
