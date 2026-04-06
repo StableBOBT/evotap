@@ -4,7 +4,7 @@ import { GAME, RATE_LIMITS, SECURITY, TOKENOMICS, API_PATHS, REDIS_KEYS } from '
 describe('GAME constants', () => {
   it('should have valid energy configuration', () => {
     expect(GAME.ENERGY.MAX).toBe(1000);
-    expect(GAME.ENERGY.RECHARGE_PER_MINUTE).toBeGreaterThan(0);
+    expect(GAME.ENERGY.REGEN_PER_SECOND).toBeGreaterThan(0);
     expect(GAME.ENERGY.TAP_COST).toBeGreaterThan(0);
   });
 
@@ -16,7 +16,8 @@ describe('GAME constants', () => {
 
   it('should have valid level configuration', () => {
     expect(GAME.LEVELS.MAX).toBeGreaterThan(0);
-    expect(GAME.LEVELS.POINTS_PER_LEVEL).toBeGreaterThan(0);
+    expect(GAME.LEVELS.THRESHOLDS.length).toBeGreaterThan(0);
+    expect(GAME.LEVELS.THRESHOLDS[0]).toBe(0);
   });
 
   it('should have valid streak configuration', () => {
