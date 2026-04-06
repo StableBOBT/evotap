@@ -317,24 +317,183 @@ async function generateAdminKey(env: Env): Promise<string> {
  * Timing-safe string comparison to prevent timing attacks
  */
 function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) {
-    // Still do comparison to prevent length-based timing leak
-    // Compare against itself to maintain constant time
-    b = a;
-  }
+  // Save original lengths before any manipulation
+  const aLen = a.length;
+  const bLen = b.length;
+
+  // Pad the shorter string to match the longer one (prevent timing leak on length)
+  const maxLen = Math.max(aLen, bLen);
+  if (aLen < maxLen) a = a.padEnd(maxLen, '\0');
+  if (bLen < maxLen) b = b.padEnd(maxLen, '\0');
 
   let result = 0;
-  for (let i = 0; i < a.length; i++) {
+  for (let i = 0; i < maxLen; i++) {
     result |= a.charCodeAt(i) ^ b.charCodeAt(i);
   }
 
-  return result === 0 && a.length === b.length;
+  return result === 0 && aLen === bLen;
 }
 
 /**
  * Export admin key generator for CLI/scripts to generate keys
  */
 export { generateAdminKey };
+
+/**
+ * Verify bot HMAC-SHA256 signature
+ * Recreates the signature from the request data and compares
+ */
+async function verifyBotHmac(
+  botToken: string,
+  signature: string,
+  timestamp: string,
+  telegramUserId?: string
+): Promise<boolean> {
+  // Check timestamp freshness (5 minutes)
+  const now = Math.floor(Date.now() / 1000);
+  const requestTime = parseInt(timestamp, 10);
+  if (isNaN(requestTime) || Math.abs(now - requestTime) > 300) {
+    return false;
+  }
+
+  // Recreate the data string (must match bot's signing format)
+  const dataToSign = [
+    `timestamp=${timestamp}`,
+    telegramUserId ? `user_id=${telegramUserId}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  // HMAC-SHA256 via Web Crypto
+  const encoder = new TextEncoder();
+  const keyData = encoder.encode(botToken);
+  const messageData = encoder.encode(dataToSign);
+
+  const key = await crypto.subtle.importKey(
+    'raw',
+    keyData,
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+
+  const expectedBuffer = await crypto.subtle.sign('HMAC', key, messageData);
+  const expectedSignature = Array.from(new Uint8Array(expectedBuffer))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+
+  // Constant-time comparison
+  if (signature.length !== expectedSignature.length) {
+    return false;
+  }
+
+  let result = 0;
+  for (let i = 0; i < signature.length; i++) {
+    result |= signature.charCodeAt(i) ^ expectedSignature.charCodeAt(i);
+  }
+
+  return result === 0;
+}
+
+/**
+ * Bot authentication middleware
+ * Validates requests from the Telegram bot using HMAC-SHA256 signatures
+ *
+ * Expected headers:
+ * - Authorization: Bot <botId>
+ * - X-Bot-Signature: <HMAC-SHA256 hex>
+ * - X-Bot-Timestamp: <unix timestamp>
+ * - X-Telegram-User-Id: <telegram user id> (optional)
+ */
+export const botAuthMiddleware: MiddlewareHandler<{
+  Bindings: Env;
+  Variables: Variables;
+}> = async (c, next) => {
+  const authHeader = c.req.header('Authorization');
+
+  if (!authHeader) {
+    return c.json(
+      {
+        success: false,
+        error: 'Missing Authorization header',
+        code: 'AUTH_MISSING',
+      },
+      401
+    );
+  }
+
+  // Expect: "Bot <botId>"
+  const [scheme, botId] = authHeader.split(' ');
+
+  if (scheme !== 'Bot' || !botId) {
+    return c.json(
+      {
+        success: false,
+        error: 'Invalid Authorization format. Use: Bot <botId>',
+        code: 'AUTH_INVALID_FORMAT',
+      },
+      401
+    );
+  }
+
+  // Verify bot ID matches the configured bot token's ID
+  const expectedBotId = c.env.BOT_TOKEN.split(':')[0];
+  if (botId !== expectedBotId) {
+    return c.json(
+      {
+        success: false,
+        error: 'Invalid bot ID',
+        code: 'AUTH_INVALID_BOT',
+      },
+      401
+    );
+  }
+
+  // Get signature and timestamp from headers
+  const signature = c.req.header('X-Bot-Signature');
+  const timestamp = c.req.header('X-Bot-Timestamp');
+
+  if (!signature || !timestamp) {
+    return c.json(
+      {
+        success: false,
+        error: 'Missing X-Bot-Signature or X-Bot-Timestamp header',
+        code: 'AUTH_INCOMPLETE',
+      },
+      401
+    );
+  }
+
+  // Get optional telegram user ID
+  const telegramUserId = c.req.header('X-Telegram-User-Id');
+
+  // Verify HMAC-SHA256 signature
+  const isValid = await verifyBotHmac(
+    c.env.BOT_TOKEN,
+    signature,
+    timestamp,
+    telegramUserId || undefined
+  );
+
+  if (!isValid) {
+    console.warn('[Bot Auth] Invalid signature attempt');
+    return c.json(
+      {
+        success: false,
+        error: 'Invalid bot signature',
+        code: 'AUTH_INVALID_SIGNATURE',
+      },
+      401
+    );
+  }
+
+  // Set telegram ID in context if provided
+  if (telegramUserId) {
+    c.set('telegramId', parseInt(telegramUserId, 10));
+  }
+
+  await next();
+};
 
 /**
  * Map internal error codes to public API error codes

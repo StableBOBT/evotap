@@ -2,6 +2,9 @@ import type { Context } from 'hono';
 import type { ValidatedUser } from '@app/telegram';
 import type { UserGameState } from './lib/redis.js';
 
+// Re-export from centralized config
+export { calculateLevel, pointsToNextLevel, ENERGY, POINTS, REFERRAL, LEVEL_THRESHOLDS } from '@app/config';
+
 /**
  * Environment bindings for Cloudflare Workers
  */
@@ -121,72 +124,3 @@ export const DEPARTMENTS: Record<DepartmentCode, { name: string; team: TeamType 
   PA: { name: 'Pando', team: 'camba' },
 };
 
-/**
- * Game constants
- */
-export const GAME_CONFIG = {
-  // Energy
-  MAX_ENERGY: 1000,
-  ENERGY_REGEN_RATE: 1, // per second
-  ENERGY_PER_TAP: 1,
-
-  // Points
-  POINTS_PER_TAP: 1,
-  REFERRAL_BONUS_REFERRER: 5000,
-  REFERRAL_BONUS_INVITEE: 5000,
-
-  // Levels
-  LEVEL_THRESHOLDS: [
-    0, // Level 1
-    5000, // Level 2
-    25000, // Level 3
-    100000, // Level 4
-    500000, // Level 5
-    1000000, // Level 6
-    5000000, // Level 7
-    10000000, // Level 8
-    50000000, // Level 9
-    100000000, // Level 10
-  ],
-
-  // Rate limits
-  MAX_TAPS_PER_SECOND: 10,
-  MAX_TAPS_PER_10_SECONDS: 50,
-
-  // Referral
-  REFERRAL_CODE_LENGTH: 8,
-  MAX_REFERRALS_PER_DAY: 100,
-} as const;
-
-/**
- * Calculate level from points
- */
-export function calculateLevel(points: number): number {
-  const thresholds = GAME_CONFIG.LEVEL_THRESHOLDS;
-  for (let i = thresholds.length - 1; i >= 0; i--) {
-    const threshold = thresholds[i];
-    if (threshold !== undefined && points >= threshold) {
-      return i + 1;
-    }
-  }
-  return 1;
-}
-
-/**
- * Calculate points needed for next level
- */
-export function pointsToNextLevel(points: number): number {
-  const level = calculateLevel(points);
-  const thresholds = GAME_CONFIG.LEVEL_THRESHOLDS;
-
-  if (level >= thresholds.length) {
-    return 0; // Max level
-  }
-
-  const nextThreshold = thresholds[level];
-  if (nextThreshold === undefined) {
-    return 0;
-  }
-
-  return nextThreshold - points;
-}

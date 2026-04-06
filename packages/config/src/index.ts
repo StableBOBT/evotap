@@ -18,12 +18,26 @@ export {
 
 // Game constants
 export {
+  // Individual systems
+  ENERGY,
+  POINTS,
+  LEVEL_THRESHOLDS,
+  MAX_LEVEL,
+  REFERRAL,
+  STREAKS,
+  SESSION,
+  // Functions
+  calculateLevel,
+  pointsToNextLevel,
+  generateReferralCode,
+  // Config objects
   GAME,
   RATE_LIMITS,
   SECURITY,
   TOKENOMICS,
   API_PATHS,
   REDIS_KEYS,
+  // Types
   type GameConstants,
   type RateLimitConstants,
   type SecurityConstants,

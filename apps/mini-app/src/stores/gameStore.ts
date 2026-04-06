@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { useEffect } from 'react';
 
 // Safe cloudStorage access
 import { cloudStorage as tgCloudStorage } from '@telegram-apps/sdk-react';
@@ -328,54 +329,43 @@ export const useGameStore = create<GameState>()((set, get) => ({
 
   // Initialize - completely synchronous, no blocking
   initialize: async () => {
-    console.log('[GameStore] Initialize called, current state:', { isInitialized: get().isInitialized });
-
     if (get().isInitialized) {
-      console.log('[GameStore] Already initialized, skipping');
       return;
     }
 
     // Mark initialized IMMEDIATELY to unblock UI
-    console.log('[GameStore] Setting isInitialized = true');
     set({ isInitialized: true });
-    console.log('[GameStore] isInitialized set to true');
 
     // Check cloud availability (non-blocking)
     let isAvailable = false;
     try {
       isAvailable = tgCloudStorage?.getItem?.isAvailable?.() ?? false;
-      console.log('[GameStore] Cloud storage available:', isAvailable);
-    } catch (err) {
-      console.log('[GameStore] Cloud storage check failed:', err);
+    } catch {
+      // Cloud storage not available
     }
     set({ isCloudAvailable: isAvailable });
 
     if (!isAvailable) {
-      console.log('[GameStore] No cloud storage, using defaults');
       get().checkAndUpdateStreak();
       return;
     }
 
     // Load from cloud in background (don't block UI)
-    console.log('[GameStore] Loading from cloud storage...');
     try {
       const stored = await Promise.race([
         tgCloudStorage.getItem(STORAGE_KEY),
         new Promise<null>((r) => setTimeout(() => {
-          console.log('[GameStore] Cloud storage timeout');
           r(null);
         }, 1000)),
       ]);
 
       if (stored) {
-        console.log('[GameStore] Cloud data loaded, parsing...');
         const data = parseStoredData(stored);
         if (data) {
           const totalTaps = typeof data.totalTaps === 'number' ? data.totalTaps : 0;
           const level = calculateLevel(totalTaps);
           const maxEnergy = calculateMaxEnergy(level);
 
-          console.log('[GameStore] Restoring state:', { totalTaps, level, team: data.team });
           set({
             points: typeof data.points === 'number' ? data.points : 0,
             energy: Math.min(typeof data.energy === 'number' ? data.energy : INITIAL_MAX_ENERGY, maxEnergy),
@@ -400,10 +390,7 @@ export const useGameStore = create<GameState>()((set, get) => ({
             walletAddress: typeof data.walletAddress === 'string' ? data.walletAddress : null,
             lastSyncedAt: typeof data.lastSyncedAt === 'number' ? data.lastSyncedAt : null,
           });
-          console.log('[GameStore] State restored successfully');
         }
-      } else {
-        console.log('[GameStore] No stored data found');
       }
       get().checkAndUpdateStreak();
       get().checkAchievements();
@@ -525,13 +512,10 @@ export const useGameStore = create<GameState>()((set, get) => ({
   selectTeam: (team: BattleTeam) => {
     const now = Date.now();
 
-    console.log('[GameStore] Selecting team:', team);
     set({
       team,
       teamJoinedAt: now,
     });
-
-    console.log('[GameStore] Team set successfully:', get().team);
 
     // Check team achievement
     get().checkAchievements();
@@ -843,13 +827,6 @@ export const useGameStore = create<GameState>()((set, get) => ({
       totalTaps: serverState.totalTaps ?? state.totalTaps,
     });
 
-    console.log('[GameStore] Synced from server:', {
-      server: serverState.points,
-      local: state.points,
-      final: finalPoints,
-      pendingTaps: state.pendingTaps,
-      strategy: hasPendingTaps ? 'kept-local' : serverHasMore ? 'used-server' : 'used-max',
-    });
   },
 
   // Clear pending taps after successful API sync
@@ -860,7 +837,6 @@ export const useGameStore = create<GameState>()((set, get) => ({
   // Update online status
   setOnlineStatus: (online: boolean) => {
     set({ isOnline: online });
-    console.log('[GameStore] Online status:', online);
   },
 
   // Get current state for API sync
@@ -882,7 +858,6 @@ export const useGameStore = create<GameState>()((set, get) => ({
 // Auto-recharge hook with proper cleanup
 export function useEnergyRecharge() {
   const rechargeEnergy = useGameStore((s) => s.rechargeEnergy);
-  const { useEffect } = require('react');
 
   useEffect(() => {
     if (typeof window === 'undefined') return;

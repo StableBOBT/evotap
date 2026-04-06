@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import type { Env, Variables } from '../types.js';
-import { GAME_CONFIG, calculateLevel } from '../types.js';
+import { ENERGY, POINTS, calculateLevel } from '@app/config';
 import { tapRateLimitMiddleware, tapIpRateLimitMiddleware } from '../middleware/index.js';
 import {
   createRedisClient,
@@ -96,7 +96,7 @@ function calculateRegeneratedEnergy(
   const elapsedSeconds = Math.floor(elapsedMs / 1000);
 
   // Regenerate energy based on elapsed time
-  const regenAmount = elapsedSeconds * GAME_CONFIG.ENERGY_REGEN_RATE;
+  const regenAmount = elapsedSeconds * ENERGY.REGEN_PER_SECOND;
   const newEnergy = Math.min(maxEnergy, currentEnergy + regenAmount);
 
   return {
@@ -174,7 +174,7 @@ export const gameRouter = new Hono<{
     );
 
     // Check if user has enough energy
-    const energyRequired = taps * GAME_CONFIG.ENERGY_PER_TAP;
+    const energyRequired = taps * ENERGY.TAP_COST;
     if (currentEnergy < energyRequired) {
       return c.json(
         {
@@ -187,7 +187,7 @@ export const gameRouter = new Hono<{
     }
 
     // Calculate points earned
-    const pointsEarned = taps * state.tapPower * GAME_CONFIG.POINTS_PER_TAP;
+    const pointsEarned = taps * state.tapPower * POINTS.PER_TAP;
     const newPoints = state.points + pointsEarned;
     const newEnergy = currentEnergy - energyRequired;
     const newTotalTaps = state.totalTaps + taps;

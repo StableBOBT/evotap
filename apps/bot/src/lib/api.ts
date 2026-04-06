@@ -86,7 +86,7 @@ export class BotApiClient {
     }
   ): Promise<ApiResponse<T>> {
     const url = `${this.apiUrl}${path}`;
-    const auth = createBotAuth(this.botToken, options?.telegramId, options?.telegramUser);
+    const auth = await createBotAuth(this.botToken, options?.telegramId, options?.telegramUser);
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',

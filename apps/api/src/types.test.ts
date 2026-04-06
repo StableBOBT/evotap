@@ -4,7 +4,15 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { calculateLevel, pointsToNextLevel, GAME_CONFIG } from './types.js';
+import {
+  calculateLevel,
+  pointsToNextLevel,
+  ENERGY,
+  POINTS,
+  REFERRAL,
+  LEVEL_THRESHOLDS,
+  RATE_LIMITS,
+} from '@app/config';
 
 describe('calculateLevel', () => {
   it('should return level 1 for 0 points', () => {
@@ -81,40 +89,58 @@ describe('pointsToNextLevel', () => {
   });
 });
 
-describe('GAME_CONFIG', () => {
+describe('ENERGY config', () => {
   it('should have valid max energy', () => {
-    expect(GAME_CONFIG.MAX_ENERGY).toBeGreaterThan(0);
+    expect(ENERGY.MAX).toBeGreaterThan(0);
   });
 
   it('should have valid energy regeneration rate', () => {
-    expect(GAME_CONFIG.ENERGY_REGEN_RATE).toBeGreaterThan(0);
+    expect(ENERGY.REGEN_PER_SECOND).toBeGreaterThan(0);
   });
 
   it('should have valid energy per tap', () => {
-    expect(GAME_CONFIG.ENERGY_PER_TAP).toBeGreaterThan(0);
-    expect(GAME_CONFIG.ENERGY_PER_TAP).toBeLessThanOrEqual(GAME_CONFIG.MAX_ENERGY);
+    expect(ENERGY.TAP_COST).toBeGreaterThan(0);
+    expect(ENERGY.TAP_COST).toBeLessThanOrEqual(ENERGY.MAX);
+  });
+});
+
+describe('POINTS config', () => {
+  it('should have valid points per tap', () => {
+    expect(POINTS.PER_TAP).toBeGreaterThan(0);
   });
 
-  it('should have valid referral bonuses', () => {
-    expect(GAME_CONFIG.REFERRAL_BONUS_INVITEE).toBeGreaterThan(0);
-    expect(GAME_CONFIG.REFERRAL_BONUS_REFERRER).toBeGreaterThan(0);
+  it('should have valid referral bonus', () => {
+    expect(POINTS.REFERRAL_BONUS).toBeGreaterThan(0);
   });
+});
 
-  it('should have level thresholds in ascending order', () => {
-    const thresholds = GAME_CONFIG.LEVEL_THRESHOLDS;
-    for (let i = 1; i < thresholds.length; i++) {
-      expect(thresholds[i]).toBeGreaterThan(thresholds[i - 1]!);
+describe('LEVEL_THRESHOLDS', () => {
+  it('should have thresholds in ascending order', () => {
+    for (let i = 1; i < LEVEL_THRESHOLDS.length; i++) {
+      expect(LEVEL_THRESHOLDS[i]).toBeGreaterThan(LEVEL_THRESHOLDS[i - 1]!);
     }
   });
 
-  it('should have reasonable rate limits', () => {
-    expect(GAME_CONFIG.MAX_TAPS_PER_SECOND).toBeGreaterThan(0);
-    expect(GAME_CONFIG.MAX_TAPS_PER_SECOND).toBeLessThan(20); // Not too fast
-    expect(GAME_CONFIG.MAX_TAPS_PER_10_SECONDS).toBeGreaterThan(GAME_CONFIG.MAX_TAPS_PER_SECOND);
+  it('should start at 0', () => {
+    expect(LEVEL_THRESHOLDS[0]).toBe(0);
+  });
+});
+
+describe('RATE_LIMITS', () => {
+  it('should have reasonable tap rate limits', () => {
+    expect(RATE_LIMITS.TAP.MAX_PER_SECOND).toBeGreaterThan(0);
+    expect(RATE_LIMITS.TAP.MAX_PER_SECOND).toBeLessThan(20);
+    expect(RATE_LIMITS.TAP.BURST_MAX_PER_10_SECONDS).toBeGreaterThan(RATE_LIMITS.TAP.MAX_PER_SECOND);
+  });
+});
+
+describe('REFERRAL config', () => {
+  it('should have valid referral code length', () => {
+    expect(REFERRAL.CODE_LENGTH).toBeGreaterThan(4);
+    expect(REFERRAL.CODE_LENGTH).toBeLessThan(20);
   });
 
-  it('should have valid referral code length', () => {
-    expect(GAME_CONFIG.REFERRAL_CODE_LENGTH).toBeGreaterThan(4); // At least 5 chars for uniqueness
-    expect(GAME_CONFIG.REFERRAL_CODE_LENGTH).toBeLessThan(20); // Not too long
+  it('should have valid bonus points', () => {
+    expect(REFERRAL.BONUS_POINTS).toBeGreaterThan(0);
   });
 });

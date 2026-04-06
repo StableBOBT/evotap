@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import type { Env, Variables } from '../types.js';
+import { REFERRAL, calculateLevel, pointsToNextLevel, generateReferralCode } from '@app/config';
 import {
   createRedisClient,
   REDIS_KEYS,
@@ -9,11 +10,6 @@ import {
   saveUserState,
   type UserGameState,
 } from '../lib/redis.js';
-
-/**
- * Referral bonus points (must match bot)
- */
-const REFERRAL_BONUS_POINTS = 5000;
 
 // Schemas
 const TelegramUserSchema = z.object({
@@ -35,47 +31,6 @@ const TelegramIdParamSchema = z.object({
 });
 
 const EnsureUserRequestSchema = TelegramUserSchema;
-
-/**
- * Calculate level from points
- */
-function calculateLevel(points: number): number {
-  if (points < 1000) return 1;
-  if (points < 5000) return 2;
-  if (points < 15000) return 3;
-  if (points < 50000) return 4;
-  if (points < 100000) return 5;
-  if (points < 250000) return 6;
-  if (points < 500000) return 7;
-  if (points < 1000000) return 8;
-  return 9;
-}
-
-/**
- * Calculate points needed for next level
- */
-function getNextLevelPoints(level: number): number {
-  const thresholds = [1000, 5000, 15000, 50000, 100000, 250000, 500000, 1000000];
-  if (level >= 9) return 0;
-  return thresholds[level - 1] || 1000;
-}
-
-/**
- * Generate referral code for user
- */
-function generateReferralCode(telegramId: number): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  const idStr = String(telegramId);
-  let code = '';
-
-  // Use telegram ID to generate consistent code
-  for (let i = 0; i < 6; i++) {
-    const idx = (parseInt(idStr[i % idStr.length] || '0') + i * 7) % chars.length;
-    code += chars[idx];
-  }
-
-  return code;
-}
 
 // Router
 export const botRouter = new Hono<{
@@ -104,7 +59,7 @@ export const botRouter = new Hono<{
 
       // Find referrer by code (search through users)
       // For efficiency, we store referral codes in a separate hash
-      const referrerIdStr = await redis.hget('referral:codes', referralCode);
+      const referrerIdStr = await redis.get(REDIS_KEYS.referralCode(referralCode));
 
       if (!referrerIdStr) {
         return c.json({
@@ -132,7 +87,7 @@ export const botRouter = new Hono<{
       const updatedNewUserState: UserGameState = {
         ...newUserState,
         referredBy: String(referrerId),
-        points: newUserState.points + REFERRAL_BONUS_POINTS,
+        points: newUserState.points + REFERRAL.BONUS_POINTS,
         firstName: newUser.firstName,
         lastName: newUser.lastName,
         username: newUser.username,
@@ -143,24 +98,24 @@ export const botRouter = new Hono<{
       // Update referrer points and count
       const updatedReferrerState: UserGameState = {
         ...referrerState,
-        points: referrerState.points + REFERRAL_BONUS_POINTS,
+        points: referrerState.points + REFERRAL.BONUS_POINTS,
         referralCount: (referrerState.referralCount || 0) + 1,
       };
       await saveUserState(redis, referrerId, updatedReferrerState);
 
       // Update leaderboards
       await Promise.all([
-        redis.zincrby(REDIS_KEYS.leaderboardGlobal, REFERRAL_BONUS_POINTS, String(newUser.telegramId)),
-        redis.zincrby(REDIS_KEYS.leaderboardGlobal, REFERRAL_BONUS_POINTS, String(referrerId)),
+        redis.zincrby(REDIS_KEYS.leaderboardGlobal, REFERRAL.BONUS_POINTS, String(newUser.telegramId)),
+        redis.zincrby(REDIS_KEYS.leaderboardGlobal, REFERRAL.BONUS_POINTS, String(referrerId)),
       ]);
 
       return c.json({
         success: true,
         data: {
           claimed: true,
-          bonusPoints: REFERRAL_BONUS_POINTS,
+          bonusPoints: REFERRAL.BONUS_POINTS,
           referrerName: referrerState.firstName || 'a friend',
-          message: `Welcome! You and your referrer each received ${REFERRAL_BONUS_POINTS} points!`,
+          message: `Welcome! You and your referrer each received ${REFERRAL.BONUS_POINTS} points!`,
         },
       });
     } catch (error) {
@@ -192,9 +147,9 @@ export const botRouter = new Hono<{
           rank: rank !== null ? rank + 1 : null,
           totalTaps: state.totalTaps,
           referralCount: state.referralCount || 0,
-          referralPoints: (state.referralCount || 0) * REFERRAL_BONUS_POINTS,
+          referralPoints: (state.referralCount || 0) * REFERRAL.BONUS_POINTS,
           streak: state.streakDays,
-          nextLevelPoints: getNextLevelPoints(state.level),
+          nextLevelPoints: pointsToNextLevel(state.points),
         },
       });
     } catch (error) {
@@ -220,7 +175,7 @@ export const botRouter = new Hono<{
       if (!referralCode) {
         referralCode = generateReferralCode(telegramId);
         // Store the code mapping
-        await redis.hset('referral:codes', referralCode, String(telegramId));
+        await redis.set(REDIS_KEYS.referralCode(referralCode), String(telegramId));
         // Update user state
         await saveUserState(redis, telegramId, { ...state, referralCode });
       }
@@ -231,7 +186,7 @@ export const botRouter = new Hono<{
           referralCode,
           referralLink: `https://t.me/evoliviabot?start=REF_${referralCode}`,
           totalReferrals: state.referralCount || 0,
-          totalPointsEarned: (state.referralCount || 0) * REFERRAL_BONUS_POINTS,
+          totalPointsEarned: (state.referralCount || 0) * REFERRAL.BONUS_POINTS,
         },
       });
     } catch (error) {
@@ -285,7 +240,7 @@ export const botRouter = new Hono<{
       let referralCode = state.referralCode;
       if (!referralCode) {
         referralCode = generateReferralCode(userData.telegramId);
-        await redis.hset('referral:codes', referralCode, String(userData.telegramId));
+        await redis.set(REDIS_KEYS.referralCode(referralCode), String(userData.telegramId));
       }
 
       // Update user info

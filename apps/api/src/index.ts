@@ -8,6 +8,7 @@ import {
   errorHandler,
   requestIdMiddleware,
   apiRateLimit,
+  botAuthMiddleware,
 } from './middleware/index.js';
 import {
   gameRouter,
@@ -168,8 +169,11 @@ v1.route('/', protectedRoutes);
 // Leaderboard can be viewed without auth, but shows more info with auth
 app.route('/api/v1/leaderboard', leaderboardRouter);
 
-// Bot routes (authenticated with bot token signature)
-app.route('/api/v1/bot', botRouter);
+// Bot routes (authenticated with bot HMAC-SHA256 signature)
+const botRoutes = new OpenAPIHono<{ Bindings: Env; Variables: Variables }>();
+botRoutes.use('*', botAuthMiddleware);
+botRoutes.route('/', botRouter);
+app.route('/api/v1/bot', botRoutes);
 
 // Admin routes (authenticated with admin key)
 app.route('/api/v1/admin', adminRouter);

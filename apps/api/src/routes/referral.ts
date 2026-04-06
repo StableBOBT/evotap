@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import type { Env, Variables } from '../types.js';
-import { GAME_CONFIG } from '../types.js';
+import { REFERRAL } from '@app/config';
 import { claimRateLimit } from '../middleware/index.js';
 import {
   createRedisClient,
@@ -56,14 +56,14 @@ export const referralRouter = new Hono<{
           inviteeId,
           inviteeUsername: null,
           inviteeFirstName: `Player ${inviteeIdStr.slice(-4)}`,
-          pointsEarned: GAME_CONFIG.REFERRAL_BONUS_REFERRER,
+          pointsEarned: REFERRAL.BONUS_POINTS,
           createdAt: inviteeState?.createdAt || new Date().toISOString(),
         };
       })
     );
 
     const totalReferrals = referrals.length;
-    const totalPointsEarned = totalReferrals * GAME_CONFIG.REFERRAL_BONUS_REFERRER;
+    const totalPointsEarned = totalReferrals * REFERRAL.BONUS_POINTS;
 
     const botUsername = getBotUsername(c.env);
 
@@ -174,8 +174,8 @@ export const referralRouter = new Hono<{
       }
 
       // Apply bonus points to both users
-      const inviteeBonus = GAME_CONFIG.REFERRAL_BONUS_INVITEE;
-      const referrerBonus = GAME_CONFIG.REFERRAL_BONUS_REFERRER;
+      const inviteeBonus = REFERRAL.BONUS_POINTS;
+      const referrerBonus = REFERRAL.BONUS_POINTS;
 
       // Update invitee state
       const updatedInviteeState: UserGameState = {

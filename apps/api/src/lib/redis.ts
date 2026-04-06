@@ -4,6 +4,7 @@
  */
 
 import type { Env } from '../types.js';
+import { generateReferralCode } from '@app/config';
 
 /**
  * Redis client interface for use in rate limiting and leaderboards
@@ -345,20 +346,6 @@ export async function getOrCreateUserState(
   return state;
 }
 
-/**
- * Generate a unique referral code for a user
- */
-function generateReferralCode(telegramId: number): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  const idPart = telegramId.toString(36).toUpperCase().slice(-3);
-
-  let code = idPart;
-  while (code.length < 8) {
-    code += chars[Math.floor(Math.random() * chars.length)];
-  }
-
-  return code.slice(0, 8);
-}
 
 /**
  * Get current date string for daily leaderboard

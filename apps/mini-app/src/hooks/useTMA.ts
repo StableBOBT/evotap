@@ -9,8 +9,8 @@ import {
   viewport,
 } from '@telegram-apps/sdk-react';
 
-// Debug logging (temporarily enabled for diagnosis)
-const DEBUG = true;
+// Debug logging (disabled in production)
+const DEBUG = false;
 const log = (msg: string, data?: unknown) => {
   if (DEBUG) console.log(`[useTMA] ${msg}`, data ?? '');
 };

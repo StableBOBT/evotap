@@ -3,6 +3,7 @@ export {
   optionalAuthMiddleware,
   strictAuthMiddleware,
   adminAuthMiddleware,
+  botAuthMiddleware,
   generateAdminKey,
 } from './auth.js';
 
